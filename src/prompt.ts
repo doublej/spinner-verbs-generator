@@ -14,6 +14,7 @@ Create a themed spinner verb set for Claude Code based on the following subject:
 
 - Generate 30–50 verbs in Dutch
 - Each verb should be a short phrase (2–4 words) in infinitive or imperative form
+- Do not prepend verb lines with "I'm", "I am", or similar subject prefixes
 - Verbs should be humorous, creative, and thematically consistent
 - Think of activities, actions, catchphrases, and inside jokes related to the subject
 - Mix mundane actions with absurd ones for comedic effect

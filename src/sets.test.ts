@@ -15,6 +15,16 @@ describe('loadSets', () => {
     const nlSets = sets.filter((s) => s.language === 'nl')
     expect(nlSets.length).toBe(3)
   })
+
+  it('strips leading first-person prefixes from loaded verbs', async () => {
+    const set = await findSet('idiot')
+    expect(set).toBeDefined()
+    const verbs = set?.config.spinnerVerbs.verbs ?? []
+    expect(verbs.length).toBeGreaterThan(0)
+    for (const verb of verbs) {
+      expect(verb).not.toMatch(/^\s*I(?:['\u2019]m| am)\s+/i)
+    }
+  })
 })
 
 describe('findSet', () => {

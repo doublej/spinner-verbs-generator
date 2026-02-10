@@ -26,6 +26,7 @@ Hard rules:
 - Every item MUST be an action phrase (something someone can do), not a bare noun or standalone quote.
   - Action-form examples: "Whisper the password", "Check the receipts", "Order another coffee", "Argue about rules", "Pretend it's fine".
 - Keep each item short: 2–6 words max.
+- Do not prepend items with "I'm", "I am", or similar subject prefixes.
 - No ending punctuation. No emojis.
 - No duplicates or near-duplicates (including trivial rewordings).
 - Copyright/accuracy guardrail:
