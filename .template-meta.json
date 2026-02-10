@@ -1,0 +1,13 @@
+{
+  "template": "typescript/node-api",
+  "rendered_at": "2026-02-08T14:50:47.770793+00:00",
+  "context": {
+    "project_name": "spinner-verbs-generator",
+    "project_slug": "spinner-verbs-generator",
+    "description": "A Node.js API",
+    "author": "Your Name",
+    "include_docker": "n",
+    "mcp_servers": "none",
+    "mcp_scope": "project"
+  }
+}
