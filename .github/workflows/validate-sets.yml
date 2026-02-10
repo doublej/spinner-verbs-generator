@@ -1,0 +1,17 @@
+name: Validate Sets
+
+on:
+  pull_request:
+    paths:
+      - 'sets/**/*.json'
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install --frozen-lockfile
+      - run: bun src/validate-sets.ts
+      - run: bun run lint
+      - run: bun run test
