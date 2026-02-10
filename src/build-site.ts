@@ -22,24 +22,23 @@ async function build(): Promise<void> {
   console.log(`Fetching GitHub data for ${usernames.length} author(s)...`)
   const authors = await fetchAllAuthors(usernames)
 
-  const templatePath = resolve(import.meta.dirname, '..', 'templates', 'marketplace.html')
-  const template = await readFile(templatePath, 'utf-8')
-
   const setsInjection = `<script>const SETS = ${JSON.stringify(grouped)}; const AUTHORS = ${JSON.stringify(authors)}</script>`
 
   const outDir = resolve(import.meta.dirname, '..', 'site')
   await mkdir(outDir, { recursive: true })
 
-  const pages = ['marketplace', 'pixi-preview'] as const
-  for (const page of pages) {
-    const tplPath = resolve(import.meta.dirname, '..', 'templates', `${page}.html`)
-    const tpl = await readFile(tplPath, 'utf-8')
-    const outName = page === 'marketplace' ? 'index.html' : `${page}.html`
-    await writeFile(resolve(outDir, outName), tpl.replace('<!--SETS_DATA-->', setsInjection))
+  const pages: Record<string, string> = {
+    homepage: 'index.html',
+    marketplace: 'marketplace.html',
+  }
+  for (const [tpl, outName] of Object.entries(pages)) {
+    const tplPath = resolve(import.meta.dirname, '..', 'templates', `${tpl}.html`)
+    const html = await readFile(tplPath, 'utf-8')
+    await writeFile(resolve(outDir, outName), html.replace('<!--SETS_DATA-->', setsInjection))
   }
 
   console.log(
-    `Built site/ (${Object.keys(grouped).length} languages, ${sets.length} sets, ${pages.length} pages)`,
+    `Built site/ (${Object.keys(grouped).length} languages, ${sets.length} sets, ${Object.keys(pages).length} pages)`,
   )
 }
 

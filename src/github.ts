@@ -69,9 +69,5 @@ export async function fetchAuthorData(username: string): Promise<AuthorData> {
 export async function fetchAllAuthors(usernames: string[]): Promise<Record<string, AuthorData>> {
   const unique = [...new Set(usernames)]
   const results = await Promise.all(unique.map(fetchAuthorData))
-  const map: Record<string, AuthorData> = {}
-  for (const data of results) {
-    map[data.username] = data
-  }
-  return map
+  return Object.fromEntries(results.map((d) => [d.username, d]))
 }

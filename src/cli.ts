@@ -14,31 +14,28 @@ Commands:
 
 const [command, ...args] = process.argv.slice(2)
 
+function requireArg(cmd: string): string {
+  if (!args[0]) {
+    console.error(`Usage: spinner-verbs ${cmd}`)
+    process.exit(1)
+  }
+  return args[0]
+}
+
 async function main(): Promise<void> {
   switch (command) {
     case 'list':
       return list()
     case 'show':
-      if (!args[0]) {
-        console.error('Usage: spinner-verbs show <name>')
-        process.exit(1)
-      }
-      return show(args[0])
+      return show(requireArg('show <name>'))
     case 'install':
-      if (!args[0]) {
-        console.error('Usage: spinner-verbs install <name>')
-        process.exit(1)
-      }
-      return install(args[0])
+      return install(requireArg('install <name>'))
     case 'current':
       return current()
     case 'reset':
       return reset()
     case 'prompt':
-      if (!args[0]) {
-        console.error('Usage: spinner-verbs prompt <subject>')
-        process.exit(1)
-      }
+      requireArg('prompt <subject>')
       return generatePrompt(args.join(' '))
     default:
       console.log(USAGE)

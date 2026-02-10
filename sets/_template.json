@@ -7,7 +7,10 @@
   "config": {
     "spinnerVerbs": {
       "mode": "replace",
-      "verbs": ["Your first verb", "Your second verb"]
+      "verbs": [
+        "I'm youring first verb",
+        "I'm youring second verb"
+      ]
     }
   }
 }

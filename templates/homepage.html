@@ -1,0 +1,562 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Claude Verbs -- Themed spinner verbs for Claude Code</title>
+  <meta name="description" content="Replace boring spinner text with themed verb sets. Install in seconds.">
+  <style>
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      background: #0d1117;
+      overflow: hidden;
+      height: 100vh;
+    }
+
+    /* ---- PixiJS background ---- */
+    #canvas-wrap {
+      position: fixed;
+      inset: -8vmax;
+      z-index: 0;
+      transform: perspective(1200px) rotateX(4deg) rotateY(-3deg);
+      transform-origin: center center;
+    }
+
+    #canvas-wrap canvas {
+      display: block;
+      width: 100% !important;
+      height: 100% !important;
+      image-rendering: pixelated;
+      image-rendering: crisp-edges;
+    }
+
+  </style>
+</head>
+<body>
+  <!--SETS_DATA-->
+
+  <div id="canvas-wrap"></div>
+
+  <script src="https://cdn.jsdelivr.net/npm/pixi.js@7.4.2/dist/pixi.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@pixi/filter-advanced-bloom@5.2.1/dist/filter-advanced-bloom.min.js"></script>
+  <script>
+  (function () {
+    'use strict';
+
+    /* ---- Constants ---- */
+
+    var SPINNER_FRAMES = ['\u00b7', '\u273b', '\u273d', '\u2736', '\u2733', '\u2722'];
+    var SPINNER_TIMELINE = [0, 0, 1, 2, 3, 4, 5, 5];
+    var FRAME_MS = 90;
+    var VERB_MS = 2200;
+    var TOKEN_RATE = 40;
+
+    var COLOR_VERB = 0xd78787;
+    var COLOR_ELLIPSIS = 0xffaf87;
+    var COLOR_META = 0x555555;
+    var BG_COLOR = 0x0d1117;
+
+    var FONT_MAIN = 56;
+    var FONT_META = FONT_MAIN;
+    var FONT_FAMILY = '"SF Mono", "Fira Code", "Cascadia Code", monospace';
+    var SCROLL_MS = 350;
+
+    /* ---- Helpers ---- */
+
+    function shuffle(arr) {
+      var a = arr.slice();
+      for (var i = a.length - 1; i > 0; i--) {
+        var j = Math.floor(Math.random() * (i + 1));
+        var t = a[i]; a[i] = a[j]; a[j] = t;
+      }
+      return a;
+    }
+
+    function getAllVerbs(sets) {
+      var all = [];
+      var keys = Object.keys(sets);
+      for (var k = 0; k < keys.length; k++) {
+        var group = sets[keys[k]];
+        for (var g = 0; g < group.length; g++) {
+          if (group[g].verbs) all = all.concat(group[g].verbs);
+        }
+      }
+      return all;
+    }
+
+    function fmtElapsed(ms) {
+      var s = Math.floor(ms / 1000);
+      if (s < 60) return s + 's';
+      return Math.floor(s / 60) + 'm ' + (s % 60) + 's';
+    }
+
+    function repeat(ch, n) {
+      var s = '';
+      for (var i = 0; i < n; i++) s += ch;
+      return s;
+    }
+
+    function pick(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
+    function randInt(lo, hi) { return lo + Math.floor(Math.random() * (hi - lo + 1)); }
+
+    /* ---- PixiJS setup ---- */
+
+    PIXI.settings.SCALE_MODE = PIXI.SCALE_MODES.NEAREST;
+    PIXI.settings.ROUND_PIXELS = true;
+
+    var wrap = document.getElementById('canvas-wrap');
+    var app = new PIXI.Application({
+      resizeTo: wrap,
+      resolution: window.devicePixelRatio * 0.125,
+      autoDensity: true,
+      backgroundColor: BG_COLOR,
+      antialias: false,
+    });
+    wrap.appendChild(app.view);
+
+    /* ---- LCD subpixel overlay (enabled by default) ---- */
+
+    var lcdOverlay = document.createElement('div');
+    lcdOverlay.id = 'lcd-overlay';
+    lcdOverlay.style.cssText = 'position:absolute;inset:0;pointer-events:none;mix-blend-mode:multiply;image-rendering:pixelated;';
+    wrap.appendChild(lcdOverlay);
+
+    function buildLcdPattern() {
+      var c = document.createElement('canvas');
+      c.width = 4; c.height = 4;
+      var ctx = c.getContext('2d');
+      var cols = [
+        [255, 51, 51],
+        [51, 255, 51],
+        [51, 51, 255],
+        [102, 102, 102],
+      ];
+      for (var row = 0; row < 4; row++) {
+        var f = row === 3 ? 0.9 : 1.0;
+        for (var col = 0; col < 4; col++) {
+          var rgb = cols[col];
+          ctx.fillStyle = 'rgb(' + Math.round(rgb[0] * f) + ',' + Math.round(rgb[1] * f) + ',' + Math.round(rgb[2] * f) + ')';
+          ctx.fillRect(col, row, 1, 1);
+        }
+      }
+      return c.toDataURL();
+    }
+
+    function updateLcdSize() {
+      var sz = 1 / ((window.devicePixelRatio || 1) * 0.125);
+      lcdOverlay.style.backgroundSize = sz + 'px ' + sz + 'px';
+    }
+
+    lcdOverlay.style.backgroundImage = 'url(' + buildLcdPattern() + ')';
+    updateLcdSize();
+    window.addEventListener('resize', updateLcdSize);
+
+    /* ---- Text objects ---- */
+
+    var GLOW = { dropShadow: true, dropShadowDistance: 0, dropShadowBlur: 6, dropShadowAlpha: 0.6 };
+
+    var styleMain = Object.assign({ fontFamily: FONT_FAMILY, fontSize: FONT_MAIN, fill: COLOR_VERB, dropShadowColor: COLOR_VERB }, GLOW);
+    var styleEllipsis = Object.assign({ fontFamily: FONT_FAMILY, fontSize: FONT_MAIN, fill: COLOR_ELLIPSIS, dropShadowColor: COLOR_ELLIPSIS }, GLOW);
+    var styleMeta = Object.assign({ fontFamily: FONT_FAMILY, fontSize: FONT_META, fill: COLOR_META, dropShadowColor: COLOR_META }, GLOW);
+
+    var glyphText = new PIXI.Text(SPINNER_FRAMES[4], styleMain);
+    var verbText = new PIXI.Text('Loading', styleMain);
+    var ellipsisText = new PIXI.Text('\u2026', styleEllipsis);
+    var metaText = new PIXI.Text('', styleMeta);
+
+    /* ---- Sweep highlight (3 yellow chars) ---- */
+    var CHAR_DWELL_MS = 300;
+    var COLOR_HIGHLIGHT = 0xffee55;
+    var styleHighlight = { fontFamily: FONT_FAMILY, fontSize: FONT_MAIN, fill: COLOR_HIGHLIGHT };
+    var highlightText = new PIXI.Text('', styleHighlight);
+
+    var spinnerLine = new PIXI.Container();
+    spinnerLine.addChild(glyphText, verbText, ellipsisText, highlightText);
+
+    var metaLine = new PIXI.Container();
+    metaLine.addChild(metaText);
+
+    /* ---- Scrolling output colours ---- */
+
+    var C_TOOL = 0x8b949e;
+    var C_PATH = 0xc9d1d9;
+    var C_OK = 0x4ade80;
+    var C_OUT = 0x6e7681;
+    var C_WARN = 0xd29922;
+    var C_ERR = 0xf85149;
+    var C_PROMPT = 0xbc8cff;
+    var C_BORDER = 0x30363d;
+    var C_LINENUM = 0x484f58;
+    var C_ACCENT = 0x79c0ff;
+
+    /* ---- Event factories ---- */
+
+    var FILES = [
+      'src/cli.ts', 'src/commands.ts', 'src/settings.ts', 'src/sets.ts',
+      'src/types.ts', 'package.json', 'tsconfig.json', 'CLAUDE.md',
+      'sets/freddy.json', 'biome.json', 'justfile', 'src/build-site.ts',
+    ];
+    var GREP_TERMS = ['loadSets', 'VerbSet', 'import.*from', 'ClaudeSettings', 'readFile', 'export'];
+    var BASH_CMDS = [
+      { cmd: 'bun run lint', out: ['Checked 21 files. No fixes.'] },
+      { cmd: 'bun run test', out: ['\u2713 3 passed (7 tests)'] },
+      { cmd: 'bunx tsc --noEmit', out: ['No errors found.'] },
+      { cmd: 'bun run build', out: ['Built in 0.12s'] },
+      { cmd: 'git status', out: ['2 files changed, 14 insertions'] },
+      { cmd: 'git diff --stat', out: ['3 files changed, 42(+), 7(-)'] },
+    ];
+    var ERROR_MSGS = [
+      { msg: 'Cannot find module \'./utils\'', detail: 'at resolve (node:internal/modules)' },
+      { msg: 'Type \'string\' not assignable to \'number\'', detail: 'src/types.ts:14:5' },
+      { msg: 'ENOENT: no such file or directory', detail: 'open \'/tmp/.cache/build\''},
+    ];
+    var PANEL_LINES = [
+      ['Plan: update settings module', 'Step 1: read current config', 'Step 2: merge verb overrides'],
+      ['Context: spinner-verbs CLI', 'Stack: TypeScript + Bun', 'Entry: src/cli.ts'],
+      ['Dependencies resolved', 'bun@1.1.42', 'pixi.js@7.4.2', 'vitest@3.0.4'],
+    ];
+
+    function mkRead() {
+      return { lines: [{ t: 'Read ' + pick(FILES), c: C_TOOL }] };
+    }
+    function mkGlob() {
+      var pat = pick(['**/*.ts', 'sets/**/*.json', 'src/**/*.ts', 'templates/**/*.html']);
+      return { lines: [{ t: 'Glob ' + pat + ' (' + randInt(2, 12) + ' matches)', c: C_TOOL }] };
+    }
+    function mkGrep() {
+      return { lines: [{ t: 'Grep "' + pick(GREP_TERMS) + '" (' + randInt(1, 18) + ' matches)', c: C_TOOL }] };
+    }
+    function mkAssistantAction() {
+      var actions = ['Read', 'Edit', 'Write', 'Glob', 'Grep'];
+      var act = pick(actions);
+      var file = pick(FILES);
+      return { lines: [
+        { t: '\u23fa ' + act + '(' + file + ')', c: C_ACCENT, col: 1 },
+        { t: '\u23bf ' + randInt(8, 120) + ' lines', c: C_OUT, col: 1 },
+      ], burstMs: 100 };
+    }
+    function mkBashCommand() {
+      var b = pick(BASH_CMDS);
+      var lines = [{ t: 'Bash ' + b.cmd, c: C_OUT }];
+      for (var i = 0; i < b.out.length; i++) lines.push({ t: b.out[i], c: C_OK });
+      return { lines: lines, burstMs: 120 };
+    }
+    function mkDiffHunk() {
+      var file = pick(FILES);
+      var startLine = randInt(1, 80);
+      var lines = [
+        { t: 'Edit ' + file, c: C_PATH },
+        { t: '@@ -' + startLine + ',3 +' + startLine + ',4 @@', c: C_LINENUM },
+      ];
+      var adds = randInt(1, 3);
+      var dels = randInt(0, 2);
+      for (var d = 0; d < dels; d++) lines.push({ t: '- ' + pick(['const old = true;', 'return null;', '// TODO']), c: C_ERR, col: 1 });
+      for (var a = 0; a < adds; a++) lines.push({ t: '+ ' + pick(['const val = parse(input);', 'return result;', 'export type Config = {};']), c: C_OK, col: 1 });
+      return { lines: lines, burstMs: 80 };
+    }
+    function mkBoxedPanel() {
+      var panel = pick(PANEL_LINES);
+      var w = 34;
+      var lines = [{ t: '\u256d' + repeat('\u2500', w) + '\u256e', c: C_BORDER, col: 1 }];
+      for (var i = 0; i < panel.length; i++) {
+        var pad = w - panel[i].length;
+        lines.push({ t: '\u2502 ' + panel[i] + repeat(' ', Math.max(0, pad - 1)) + '\u2502', c: C_BORDER, col: 1 });
+      }
+      lines.push({ t: '\u2570' + repeat('\u2500', w) + '\u256f', c: C_BORDER, col: 1 });
+      return { lines: lines, burstMs: 60 };
+    }
+    function mkPromptLine() {
+      var cmds = ['\u276f build', '\u276f /fast', '\u276f test --watch', '\u276f lint --fix', '\u276f git push'];
+      return { lines: [{ t: pick(cmds), c: C_PROMPT, col: 1 }] };
+    }
+    function mkErrorBlock() {
+      var e = pick(ERROR_MSGS);
+      return { lines: [
+        { t: 'Error: ' + e.msg, c: C_ERR },
+        { t: e.detail, c: C_OUT },
+      ], burstMs: 100 };
+    }
+    function mkSearchSummary() {
+      var msgs = [
+        { t: '\u2713 tests passed (7/7)', c: C_OK, col: 1 },
+        { t: '\u2713 lint clean', c: C_OK, col: 1 },
+        { t: '\u2713 typecheck passed', c: C_OK, col: 1 },
+        { t: 'Validation: 0 errors, 2 warnings', c: C_WARN },
+        { t: 'warn: nl/multi-lul.json: 54 verbs', c: C_WARN },
+        { t: 'Duration: ' + randInt(120, 900) + 'ms', c: C_OUT },
+      ];
+      return { lines: [pick(msgs)] };
+    }
+    function mkCompletionTagline() {
+      var msgs = [
+        { t: 'Cooked for ' + randInt(8, 45) + 's', c: C_OUT },
+        { t: '\u2193 ' + randInt(800, 4200) + ' tokens used', c: C_OUT, col: 1 },
+        { t: 'Done in ' + randInt(2, 18) + 's', c: C_OUT },
+      ];
+      return { lines: [pick(msgs)] };
+    }
+    function mkModeToggle() {
+      return { lines: [
+        { t: '/fast', c: C_PROMPT, col: 1 },
+        { t: 'Fast mode enabled', c: C_OK },
+      ], burstMs: 150 };
+    }
+
+    var EVENT_TABLE = [
+      { fn: mkRead, w: 20 },
+      { fn: mkGlob, w: 6 },
+      { fn: mkGrep, w: 6 },
+      { fn: mkAssistantAction, w: 12 },
+      { fn: mkBashCommand, w: 8 },
+      { fn: mkDiffHunk, w: 5 },
+      { fn: mkBoxedPanel, w: 3 },
+      { fn: mkPromptLine, w: 4 },
+      { fn: mkErrorBlock, w: 2 },
+      { fn: mkSearchSummary, w: 6 },
+      { fn: mkCompletionTagline, w: 3 },
+      { fn: mkModeToggle, w: 2 },
+    ];
+    var TOTAL_WEIGHT = 0;
+    for (var i = 0; i < EVENT_TABLE.length; i++) TOTAL_WEIGHT += EVENT_TABLE[i].w;
+
+    function pickEvent() {
+      var r = Math.random() * TOTAL_WEIGHT;
+      var cum = 0;
+      for (var i = 0; i < EVENT_TABLE.length; i++) {
+        cum += EVENT_TABLE[i].w;
+        if (r < cum) return EVENT_TABLE[i].fn();
+      }
+      return EVENT_TABLE[EVENT_TABLE.length - 1].fn();
+    }
+
+    /* ---- Line buffer ---- */
+
+    var lineBuffer = [];
+    var currentBurstMs = 0;
+    var linesLeftInBurst = 0;
+
+    var BLANK = { t: ' ', c: BG_COLOR };
+
+    function feedBuffer() {
+      if (lineBuffer.length > 0) return;
+      var evt = pickEvent();
+      lineBuffer = evt.lines.slice();
+      lineBuffer.push(BLANK);
+      currentBurstMs = evt.burstMs || 0;
+      linesLeftInBurst = lineBuffer.length;
+    }
+
+    function nextLine() {
+      feedBuffer();
+      linesLeftInBurst--;
+      return lineBuffer.shift();
+    }
+
+    var scrollContainer = new PIXI.Container();
+    var scrollItems = [];
+
+    /* ---- Bottom chrome ---- */
+
+    var C_RULE = 0x30363d;
+    var C_DIM = 0x6e7681;
+    var styleRule = Object.assign({ fontFamily: FONT_FAMILY, fontSize: FONT_MAIN, fill: C_RULE, dropShadowColor: C_RULE }, GLOW);
+    var styleDim = Object.assign({ fontFamily: FONT_FAMILY, fontSize: FONT_MAIN, fill: C_DIM, dropShadowColor: C_DIM }, GLOW);
+    var stylePrompt = Object.assign({ fontFamily: FONT_FAMILY, fontSize: FONT_MAIN, fill: C_PROMPT, dropShadowColor: C_PROMPT }, GLOW);
+
+    var ruleTop = new PIXI.Text('', styleRule);
+    var promptText = new PIXI.Text('\u276f', stylePrompt);
+    var ruleBottom = new PIXI.Text('', styleRule);
+    var statusText = new PIXI.Text('', styleDim);
+    var C_PERMS = 0xd29922;
+    var stylePerms = Object.assign({ fontFamily: FONT_FAMILY, fontSize: FONT_MAIN, fill: C_PERMS, dropShadowColor: C_PERMS }, GLOW);
+    var permsText = new PIXI.Text('', stylePerms);
+    var infoText = new PIXI.Text('', styleDim);
+
+    var bottomChrome = new PIXI.Container();
+    bottomChrome.addChild(ruleTop, promptText, ruleBottom, statusText, permsText, infoText);
+
+    app.stage.addChild(scrollContainer, spinnerLine, metaLine, bottomChrome);
+
+    /* ---- Bloom ---- */
+    if (PIXI.filters && PIXI.filters.AdvancedBloomFilter) {
+      app.stage.filters = [new PIXI.filters.AdvancedBloomFilter({
+        threshold: 0.3,
+        bloomScale: 0.6,
+        brightness: 1.1,
+        blur: 4,
+        quality: 2,
+      })];
+    }
+
+    /* ---- Glare ---- */
+    var glareCanvas = document.createElement('canvas');
+    glareCanvas.width = 256; glareCanvas.height = 256;
+    var gctx = glareCanvas.getContext('2d');
+    var grad = gctx.createRadialGradient(128, 128, 0, 128, 128, 128);
+    grad.addColorStop(0, 'rgba(255,255,255,0.18)');
+    grad.addColorStop(0.4, 'rgba(255,255,255,0.06)');
+    grad.addColorStop(1, 'rgba(255,255,255,0)');
+    gctx.fillStyle = grad;
+    gctx.fillRect(0, 0, 256, 256);
+    var glareTex = PIXI.Texture.from(glareCanvas);
+    var glareSprite = new PIXI.Sprite(glareTex);
+    glareSprite.anchor.set(0.5);
+    glareSprite.blendMode = PIXI.BLEND_MODES.ADD;
+    glareSprite.scale.set(4, 2.5);
+    app.stage.addChild(glareSprite);
+
+    /* ---- Layout ---- */
+
+    var chMetric = new PIXI.Text('M', { fontFamily: FONT_FAMILY, fontSize: FONT_MAIN });
+    var chW = chMetric.width;
+    chMetric.destroy();
+    var prevRuleCols = 0;
+
+    function layout() {
+      var col3 = Math.round(3 * chW);
+      verbText.x = col3;
+      ellipsisText.x = verbText.x + verbText.width;
+
+      var lineW = ellipsisText.x + ellipsisText.width;
+      var leftX = Math.round((app.screen.width - lineW) / 2);
+      spinnerLine.x = leftX;
+      spinnerLine.y = Math.round(app.screen.height / 2 - glyphText.height);
+
+      metaLine.x = leftX + col3;
+      metaLine.y = Math.round(spinnerLine.y + glyphText.height + 8);
+
+      scrollContainer.x = leftX;
+
+      // bottom chrome
+      var lh = glyphText.height;
+      var pad = Math.round(lh * 0.3);
+      var ruleCols = Math.max(1, Math.floor(app.screen.width / chW) - 2);
+      if (ruleCols !== prevRuleCols) {
+        var rule = repeat('\u2500', ruleCols);
+        ruleTop.text = rule;
+        ruleBottom.text = rule;
+        prevRuleCols = ruleCols;
+      }
+
+      var bottomY = metaLine.y + lh + pad;
+      var ch1 = Math.round(chW);
+      bottomChrome.x = leftX;
+
+      ruleTop.x = ch1;
+      ruleTop.y = bottomY;
+      promptText.x = ch1;
+      promptText.y = bottomY + lh + pad;
+      ruleBottom.x = ch1;
+      ruleBottom.y = bottomY + lh * 2 + pad * 2;
+      statusText.x = ch1;
+      statusText.y = bottomY + lh * 3 + pad * 3;
+      permsText.x = ch1;
+      permsText.y = statusText.y + lh + pad;
+      infoText.x = ch1;
+      infoText.y = permsText.y + lh + pad;
+    }
+
+    function addScrollLine() {
+      var line = nextLine();
+      var txt = new PIXI.Text(line.t, Object.assign({ fontFamily: FONT_FAMILY, fontSize: FONT_MAIN, fill: line.c, dropShadowColor: line.c }, GLOW));
+      txt.x = Math.round((line.col || 3) * chW);
+      scrollContainer.addChild(txt);
+      scrollItems.push(txt);
+
+      var lh = Math.round(glyphText.height * 1.25);
+      var gap = Math.round(lh * 0.6);
+      for (var i = 0; i < scrollItems.length; i++) {
+        scrollItems[i].y = spinnerLine.y - gap - (scrollItems.length - i) * lh;
+      }
+
+      while (scrollItems.length > 0 && scrollItems[0].y + lh < 0) {
+        scrollContainer.removeChild(scrollItems[0]);
+        scrollItems[0].destroy();
+        scrollItems.shift();
+      }
+    }
+
+    /* ---- State ---- */
+
+    var verbs = [];
+    var verbIdx = 0;
+    var spinnerTick = 0;
+    var tokenCount = 0;
+    var startTime = Date.now();
+    var lastFrameTime = 0;
+    var lastVerbTime = 0;
+    var lastTokenTime = 0;
+    var lastScrollTime = 0;
+
+    /* ---- Animation loop ---- */
+
+    app.ticker.add(function () {
+      var now = Date.now();
+
+      if (now - lastFrameTime >= FRAME_MS) {
+        spinnerTick++;
+        var fi = SPINNER_TIMELINE[spinnerTick % SPINNER_TIMELINE.length];
+        glyphText.text = SPINNER_FRAMES[fi];
+        lastFrameTime = now;
+      }
+
+      if (verbs.length > 0 && now - lastVerbTime >= VERB_MS) {
+        verbIdx = (verbIdx + 1) % verbs.length;
+        verbText.text = verbs[verbIdx];
+        lastVerbTime = now;
+      }
+
+      if (now - lastTokenTime >= 1000) {
+        tokenCount += TOKEN_RATE + Math.floor(Math.random() * 20 - 10);
+        lastTokenTime = now;
+      }
+
+      var scrollDelay = (currentBurstMs > 0 && linesLeftInBurst > 0) ? currentBurstMs : SCROLL_MS;
+      if (now - lastScrollTime >= scrollDelay) {
+        addScrollLine();
+        lastScrollTime = now;
+      }
+
+      var verb = verbText.text;
+      var totalSteps = verb.length + 2;
+      var cycleMs = totalSteps * CHAR_DWELL_MS;
+      if (verb.length > 0) {
+        var step = Math.floor((now % cycleMs) / CHAR_DWELL_MS) - 2;
+        var start = Math.max(0, step);
+        var end = Math.min(verb.length, step + 3);
+        highlightText.text = verb.substring(start, end);
+        highlightText.x = verbText.x + start * chW;
+        highlightText.visible = end > start;
+      }
+
+      var glareCycle = 12000;
+      var gt = (now % glareCycle) / glareCycle;
+      glareSprite.x = app.screen.width * (0.2 + 0.6 * gt);
+      glareSprite.y = app.screen.height * (0.3 + 0.15 * Math.sin(gt * Math.PI * 2));
+      glareSprite.alpha = 0.5 + 0.3 * Math.sin(gt * Math.PI);
+
+      var elapsed = fmtElapsed(now - startTime);
+      metaText.text = '(esc to interrupt \u00b7 ' + elapsed + ' \u00b7 \u2193 ' + tokenCount + ' tokens \u00b7 thinking)';
+
+      statusText.text = '\u2026/_management\u2026/spinner-verbs\u2026/site   main *5';
+      permsText.text = '\u23f5\u23f5 bypass permissions on (shift+tab to cycle) \u00b7 5 files +322 -66';
+      var h = Math.floor((now - startTime) / 3600000);
+      var m = Math.floor(((now - startTime) % 3600000) / 60000);
+      var timeStr = String(h).padStart(2, '0') + ':' + String(m).padStart(2, '0');
+      infoText.text = timeStr + ' | tip: /git:commit';
+
+      layout();
+    });
+
+    /* ---- Init ---- */
+
+    var sets = (typeof SETS !== 'undefined') ? SETS : {};
+    verbs = shuffle(getAllVerbs(sets));
+    if (verbs.length === 0) verbs = ['Thinking', 'Processing'];
+    verbText.text = verbs[0];
+    layout();
+  })();
+  </script>
+</body>
+</html>
