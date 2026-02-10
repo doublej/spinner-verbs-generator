@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Claude Verbs -- Themed spinner verbs for Claude Code</title>
+  <title>Claude Verbs -- Themed claude verbs for Claude Code</title>
   <meta name="description" content="Replace boring spinner text with themed verb sets. Install in seconds.">
   <style>
     *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
@@ -15,13 +15,13 @@
     }
 
     /* ---- PixiJS background ---- */
-    #canvas-wrap {
+    #canvas-wrap, #lcd-overlay {
       position: fixed;
-      inset: -8vmax;
-      z-index: 0;
-      transform: perspective(1200px) rotateX(4deg) rotateY(-3deg);
-      transform-origin: center center;
+      inset: -10vmax;
+      transform: perspective(1000px) rotateX(10deg) rotateY(-2deg) rotateZ(4deg) scale(3) translate(2vw, 0vh);
+      transform-origin: 42% 50%;
     }
+    #canvas-wrap { z-index: 0; }
 
     #canvas-wrap canvas {
       display: block;
@@ -31,39 +31,82 @@
       image-rendering: crisp-edges;
     }
 
+    /* ---- CSS Glare overlay ---- */
+    #glare-overlay {
+      position: absolute;
+      top: -10%;
+      right: -10%;
+      width: 60vmax;
+      height: 40vmax;
+      background: radial-gradient(ellipse at center, rgba(255,255,255,0.08) 0%, rgba(255,255,255,0.02) 40%, rgba(255,255,255,0) 70%);
+      mix-blend-mode: screen;
+      pointer-events: none;
+      z-index: 2;
+    }
+
+    /* ---- Tweakpane ---- */
+    .tp-dfwv { z-index: 10; position: fixed !important; top: 8px; right: 8px; }
+
   </style>
 </head>
 <body>
   <!--SETS_DATA-->
 
-  <div id="canvas-wrap"></div>
+  <div id="canvas-wrap">
+    <div id="glare-overlay"></div>
+  </div>
 
   <script src="https://cdn.jsdelivr.net/npm/pixi.js@7.4.2/dist/pixi.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@pixi/filter-advanced-bloom@5.2.1/dist/filter-advanced-bloom.min.js"></script>
   <script>
   (function () {
     'use strict';
+
+    /* ---- Params ---- */
+
+    var params = {
+      frameMs: 100,
+      verbMs: 4500,
+      scrollMs: 350,
+      demoTimeoutMs: 60000,
+      charDwellMs: 550,
+      tokenRate: 70,
+      colorVerb: '#d78787',
+      colorEllipsis: '#ffaf87',
+      colorMeta: '#555555',
+      bgColor: '#0d1117',
+      colorHighlight: '#ffee55',
+      glareOpacity: 1,
+      inset: -10,
+      perspective: 1000,
+      rotateX: 10,
+      rotateY: -2,
+      rotateZ: 4,
+      scale: 3,
+      translateX: 2,
+      translateY: 0,
+      originX: 42,
+      originY: 50,
+      resolutionMult: 0.25,
+      imageRendering: 'pixelated',
+      fontSize: 30,
+      lcdEnabled: true,
+      deadPixelsEnabled: true,
+      tuiOffsetCols: 40,
+      flickerNormalPct: 20,
+      flickerMaxYLines: 4,
+      flickerGhostAlphaMin: 0.3,
+    };
 
     /* ---- Constants ---- */
 
     var SPINNER_FRAMES = ['\u00b7', '\u273b', '\u273d', '\u2736', '\u2733', '\u2722'];
     var SPINNER_TIMELINE = [0, 0, 1, 2, 3, 4, 5, 5];
-    var FRAME_MS = 90;
-    var VERB_MS = 2200;
-    var TOKEN_RATE = 40;
-
-    var COLOR_VERB = 0xd78787;
-    var COLOR_ELLIPSIS = 0xffaf87;
-    var COLOR_META = 0x555555;
-    var BG_COLOR = 0x0d1117;
-
-    var FONT_MAIN = 56;
-    var FONT_META = FONT_MAIN;
     var FONT_FAMILY = '"SF Mono", "Fira Code", "Cascadia Code", monospace';
-    var SCROLL_MS = 350;
-    var DEMO_TIMEOUT_MS = 15000;
 
     /* ---- Helpers ---- */
+
+    function hexToNum(hex) { return parseInt(hex.slice(1), 16); }
+    function numToHex(n) { return '#' + ('000000' + (n >>> 0).toString(16)).slice(-6); }
 
     function shuffle(arr) {
       var a = arr.slice();
@@ -74,13 +117,24 @@
       return a;
     }
 
+    function normalizeVerbLine(line) {
+      if (typeof line !== 'string') return '';
+      return line.replace(/^\s*I(?:[\u2019']m| am)\s+/i, '');
+    }
+
+    function normalizeVerbs(lines) {
+      var out = [];
+      for (var i = 0; i < lines.length; i++) out.push(normalizeVerbLine(lines[i]));
+      return out;
+    }
+
     function getAllVerbs(sets) {
       var all = [];
       var keys = Object.keys(sets);
       for (var k = 0; k < keys.length; k++) {
         var group = sets[keys[k]];
         for (var g = 0; g < group.length; g++) {
-          if (group[g].verbs) all = all.concat(group[g].verbs);
+          if (group[g].verbs) all = all.concat(normalizeVerbs(group[g].verbs));
         }
       }
       return all;
@@ -101,6 +155,16 @@
     function pick(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
     function randInt(lo, hi) { return lo + Math.floor(Math.random() * (hi - lo + 1)); }
 
+    function makeStyle(color) {
+      return {
+        fontFamily: FONT_FAMILY,
+        fontSize: params.fontSize,
+        fill: color,
+      };
+    }
+
+    function blankLine() { return { t: ' ', c: hexToNum(params.bgColor) }; }
+
     /* Called at init; references sets + colour constants defined below */
     function buildHeaderRows(cols) {
       var n = 0;
@@ -119,26 +183,38 @@
       function rpad(s, w) { return s + repeat(' ', Math.max(0, w - s.length)); }
 
       function row(left, right, c) {
-        return { text: '\u2502' + ctr(left, lw) + '\u2502' + rpad(' ' + right, rw) + '\u2502', color: c };
+        return { parts: [
+          { text: '\u2502', color: cv },
+          { text: ctr(left, lw), color: c },
+          { text: '\u2502', color: cv },
+          { text: rpad(' ' + right, rw), color: c },
+          { text: '\u2502', color: cv },
+        ] };
       }
 
+      var cv = hexToNum(params.colorVerb);
+      var cm = hexToNum(params.colorMeta);
       var title = ' Claude Verbs ';
       var dashes = inner - title.length;
       var dl = Math.floor(dashes / 2);
 
       return [
-        { text: '\u256d' + repeat('\u2500', dl) + title + repeat('\u2500', dashes - dl) + '\u256e', color: C_ACCENT },
+        { parts: [
+          { text: '\u256d' + repeat('\u2500', dl), color: cv },
+          { text: title, color: C_ACCENT },
+          { text: repeat('\u2500', dashes - dl) + '\u256e', color: cv },
+        ] },
         row('', '', C_BORDER),
-        row('Welcome!', 'Getting started', COLOR_VERB),
-        row('', 'spinner-verbs install <name>', C_DIM),
-        row('\u2590\u259b\u2588\u2588\u2588\u259c\u258c', repeat('\u2500', 25), COLOR_VERB),
-        row('\u259d\u259c\u2588\u2588\u2588\u2588\u2588\u259b\u2598', n + ' verb sets available', COLOR_VERB),
+        row('Welcome!', 'Getting started', cv),
+        row('', 'claude-verbs install <name>', C_DIM),
+        row('\u2590\u259b\u2588\u2588\u2588\u259c\u258c', repeat('\u2500', 25), cv),
+        row('\u259d\u259c\u2588\u2588\u2588\u2588\u2588\u259b\u2598', n + ' verb sets available', cv),
         row('\u2598\u2598 \u259d\u259d', 'Arrow keys to browse', C_DIM),
         row('', '', C_BORDER),
-        row('spinner-verbs v0.1', '', COLOR_VERB),
+        row('claude-verbs v0.1', '', cv),
         row('', '', C_BORDER),
-        { text: '\u2570' + repeat('\u2500', inner) + '\u256f', color: C_BORDER },
-        { text: ctr('Claude Verbs \u2014 themed spinner verbs for Claude Code', cols), color: COLOR_META },
+        { parts: [{ text: '\u2570' + repeat('\u2500', inner) + '\u256f', color: cv }] },
+        { parts: [{ text: '  Claude Verbs \u2014 themed claude verbs for Claude Code', color: cm }] },
       ];
     }
 
@@ -191,6 +267,7 @@
       skipCount: 0,
       postIndex: 0,
       demoTimer: null,
+      hasSubmitted: false,
     };
 
     var POST_SUGGESTIONS = [
@@ -204,21 +281,53 @@
     PIXI.settings.ROUND_PIXELS = true;
 
     var wrap = document.getElementById('canvas-wrap');
+    var glareOverlay = document.getElementById('glare-overlay');
+
+    /* ---- Dead pixel helpers (seeded pseudo-random, painted into LCD overlay) ---- */
+    var seed = 42;
+    function seededRand() { seed = (seed * 16807 + 0) % 2147483647; return seed / 2147483647; }
+
+    function buildDeadPixelLayer(w, h) {
+      var c = document.createElement('canvas');
+      var dpr = window.devicePixelRatio || 1;
+      c.width = Math.round(w * dpr);
+      c.height = Math.round(h * dpr);
+      if (!params.deadPixelsEnabled) return c.toDataURL();
+      var ctx = c.getContext('2d');
+      var px = Math.round(3 * dpr);
+      ctx.fillStyle = '#0a0c10';
+      seed = 42;
+      for (var i = 0; i < 2; i++) {
+        var x = Math.round((0.15 + seededRand() * 0.70) * c.width);
+        var y = Math.round((0.10 + seededRand() * 0.60) * c.height);
+        ctx.fillRect(x, y, px, px);
+      }
+      return c.toDataURL();
+    }
+
+    function snapResolutionMult(mult) {
+      var dpr = window.devicePixelRatio || 1;
+      var n = Math.max(1, Math.round(1 / (dpr * mult)));
+      return 1 / (n * dpr);
+    }
+
+    params.resolutionMult = snapResolutionMult(params.resolutionMult);
+
     var app = new PIXI.Application({
       resizeTo: wrap,
-      resolution: window.devicePixelRatio * 0.125,
+      resolution: window.devicePixelRatio * params.resolutionMult,
       autoDensity: true,
-      backgroundColor: BG_COLOR,
+      backgroundColor: hexToNum(params.bgColor),
       antialias: false,
     });
     wrap.appendChild(app.view);
 
-    /* ---- LCD subpixel overlay (enabled by default) ---- */
+    /* ---- LCD subpixel overlay ---- */
 
     var lcdOverlay = document.createElement('div');
     lcdOverlay.id = 'lcd-overlay';
-    lcdOverlay.style.cssText = 'position:absolute;inset:0;pointer-events:none;mix-blend-mode:multiply;image-rendering:pixelated;';
-    wrap.appendChild(lcdOverlay);
+    lcdOverlay.style.cssText = 'z-index:1;pointer-events:none;mix-blend-mode:multiply;image-rendering:pixelated;';
+    document.body.appendChild(lcdOverlay);
 
     function buildLcdPattern() {
       var c = document.createElement('canvas');
@@ -241,22 +350,26 @@
       return c.toDataURL();
     }
 
+    var lcdTileUrl = buildLcdPattern();
+
     function updateLcdSize() {
-      var sz = 1 / ((window.devicePixelRatio || 1) * 0.125);
-      lcdOverlay.style.backgroundSize = sz + 'px ' + sz + 'px';
+      var sz = 1 / ((window.devicePixelRatio || 1) * params.resolutionMult);
+      var w = window.innerWidth;
+      var h = window.innerHeight;
+      var dpUrl = buildDeadPixelLayer(w, h);
+      lcdOverlay.style.backgroundImage = 'url(' + dpUrl + '), url(' + lcdTileUrl + ')';
+      lcdOverlay.style.backgroundSize = '100% 100%, ' + sz + 'px ' + sz + 'px';
+      lcdOverlay.style.backgroundRepeat = 'no-repeat, repeat';
     }
 
-    lcdOverlay.style.backgroundImage = 'url(' + buildLcdPattern() + ')';
     updateLcdSize();
-    window.addEventListener('resize', updateLcdSize);
+    window.addEventListener('resize', function () { updateLcdSize(); layoutDirty = true; });
 
     /* ---- Text objects ---- */
 
-    var GLOW = { dropShadow: true, dropShadowDistance: 0, dropShadowBlur: 6, dropShadowAlpha: 0.6 };
-
-    var styleMain = Object.assign({ fontFamily: FONT_FAMILY, fontSize: FONT_MAIN, fill: COLOR_VERB, dropShadowColor: COLOR_VERB }, GLOW);
-    var styleEllipsis = Object.assign({ fontFamily: FONT_FAMILY, fontSize: FONT_MAIN, fill: COLOR_ELLIPSIS, dropShadowColor: COLOR_ELLIPSIS }, GLOW);
-    var styleMeta = Object.assign({ fontFamily: FONT_FAMILY, fontSize: FONT_META, fill: COLOR_META, dropShadowColor: COLOR_META }, GLOW);
+    var styleMain = makeStyle(hexToNum(params.colorVerb));
+    var styleEllipsis = makeStyle(hexToNum(params.colorEllipsis));
+    var styleMeta = makeStyle(hexToNum(params.colorMeta));
 
     var glyphText = new PIXI.Text(SPINNER_FRAMES[4], styleMain);
     var verbText = new PIXI.Text('Loading', styleMain);
@@ -264,9 +377,7 @@
     var metaText = new PIXI.Text('', styleMeta);
 
     /* ---- Sweep highlight (3 yellow chars) ---- */
-    var CHAR_DWELL_MS = 300;
-    var COLOR_HIGHLIGHT = 0xffee55;
-    var styleHighlight = { fontFamily: FONT_FAMILY, fontSize: FONT_MAIN, fill: COLOR_HIGHLIGHT };
+    var styleHighlight = { fontFamily: FONT_FAMILY, fontSize: params.fontSize, fill: hexToNum(params.colorHighlight) };
     var highlightText = new PIXI.Text('', styleHighlight);
 
     var spinnerLine = new PIXI.Container();
@@ -283,17 +394,10 @@
     var inputContainer = new PIXI.Container();
     inputContainer.eventMode = 'static';
     inputContainer.cursor = 'pointer';
-    var caretText = new PIXI.Text('> ', Object.assign({ fontFamily: FONT_FAMILY, fontSize: FONT_MAIN, fill: COLOR_SUGGESTION, dropShadowColor: COLOR_SUGGESTION }, GLOW));
-    var inputText = new PIXI.Text('', Object.assign({ fontFamily: FONT_FAMILY, fontSize: FONT_MAIN, fill: COLOR_SUGGESTION, dropShadowColor: COLOR_SUGGESTION }, GLOW));
+    var caretText = new PIXI.Text('> ', makeStyle(COLOR_SUGGESTION));
+    var inputText = new PIXI.Text('', makeStyle(COLOR_SUGGESTION));
     inputText.x = Math.round(caretText.width);
     inputContainer.addChild(caretText, inputText);
-
-    /* ---- Bugged placeholder ---- */
-
-    var buggedContainer = new PIXI.Container();
-    var buggedText = new PIXI.Text('BUGGED', Object.assign({ fontFamily: FONT_FAMILY, fontSize: Math.round(FONT_MAIN * 1.5), fill: 0xff0000, dropShadowColor: 0xff0000 }, GLOW));
-    buggedContainer.addChild(buggedText);
-    buggedContainer.visible = false;
 
     /* ---- Scrolling output colours ---- */
 
@@ -331,7 +435,7 @@
     ];
     var PANEL_LINES = [
       ['Plan: update settings module', 'Step 1: read current config', 'Step 2: merge verb overrides'],
-      ['Context: spinner-verbs CLI', 'Stack: TypeScript + Bun', 'Entry: src/cli.ts'],
+      ['Context: claude-verbs CLI', 'Stack: TypeScript + Bun', 'Entry: src/cli.ts'],
       ['Dependencies resolved', 'bun@1.1.42', 'pixi.js@7.4.2', 'vitest@3.0.4'],
     ];
 
@@ -454,13 +558,11 @@
     var currentBurstMs = 0;
     var linesLeftInBurst = 0;
 
-    var BLANK = { t: ' ', c: BG_COLOR };
-
     function feedBuffer() {
       if (lineBuffer.length > 0) return;
       var evt = pickEvent();
       lineBuffer = evt.lines.slice();
-      lineBuffer.push(BLANK);
+      lineBuffer.push(blankLine());
       currentBurstMs = evt.burstMs || 0;
       linesLeftInBurst = lineBuffer.length;
     }
@@ -474,79 +576,86 @@
     var scrollContainer = new PIXI.Container();
     var scrollItems = [];
 
+    /* ---- Text object pool ---- */
+
+    var textPool = [];
+    var POOL_CAP = 40;
+
+    function acquireText(str, color) {
+      var txt;
+      if (textPool.length > 0) {
+        txt = textPool.pop();
+        txt.text = str;
+        txt.style.fontSize = params.fontSize;
+        txt.style.fill = color;
+        txt.visible = true;
+      } else {
+        txt = new PIXI.Text(str, makeStyle(color));
+      }
+      return txt;
+    }
+
+    function releaseText(txt) {
+      txt.visible = false;
+      if (textPool.length < POOL_CAP && txt.style) {
+        textPool.push(txt);
+      } else {
+        txt.destroy({ children: true });
+      }
+    }
+
     /* ---- Bottom chrome ---- */
 
     var C_RULE = 0x30363d;
     var C_DIM = 0x6e7681;
-    var styleRule = Object.assign({ fontFamily: FONT_FAMILY, fontSize: FONT_MAIN, fill: C_RULE, dropShadowColor: C_RULE }, GLOW);
-    var styleDim = Object.assign({ fontFamily: FONT_FAMILY, fontSize: FONT_MAIN, fill: C_DIM, dropShadowColor: C_DIM }, GLOW);
-    var stylePrompt = Object.assign({ fontFamily: FONT_FAMILY, fontSize: FONT_MAIN, fill: C_PROMPT, dropShadowColor: C_PROMPT }, GLOW);
+    var C_PERMS = 0xd29922;
+
+    var styleRule = makeStyle(C_RULE);
+    var styleDim = makeStyle(C_DIM);
+    var stylePrompt = makeStyle(C_PROMPT);
+    var stylePerms = makeStyle(C_PERMS);
 
     var ruleTop = new PIXI.Text('', styleRule);
     var promptText = new PIXI.Text('\u276f', stylePrompt);
     var ruleBottom = new PIXI.Text('', styleRule);
     var statusText = new PIXI.Text('', styleDim);
-    var C_PERMS = 0xd29922;
-    var stylePerms = Object.assign({ fontFamily: FONT_FAMILY, fontSize: FONT_MAIN, fill: C_PERMS, dropShadowColor: C_PERMS }, GLOW);
     var permsText = new PIXI.Text('', stylePerms);
     var infoText = new PIXI.Text('', styleDim);
 
     var bottomChrome = new PIXI.Container();
     bottomChrome.addChild(ruleTop, promptText, ruleBottom, statusText, permsText, infoText);
 
-    app.stage.addChild(scrollContainer, spinnerLine, metaLine, bottomChrome, inputContainer, buggedContainer);
+    var flickerWrap = new PIXI.Container();
+    flickerWrap.addChild(scrollContainer, spinnerLine, metaLine, bottomChrome, inputContainer);
+    app.stage.addChild(flickerWrap);
 
-    /* ---- Bloom ---- */
-    if (PIXI.filters && PIXI.filters.AdvancedBloomFilter) {
-      app.stage.filters = [new PIXI.filters.AdvancedBloomFilter({
-        threshold: 0.3,
-        bloomScale: 0.6,
-        brightness: 1.1,
-        blur: 4,
-        quality: 2,
-      })];
-    }
-
-    /* ---- Glare ---- */
-    var glareCanvas = document.createElement('canvas');
-    glareCanvas.width = 256; glareCanvas.height = 256;
-    var gctx = glareCanvas.getContext('2d');
-    var grad = gctx.createRadialGradient(128, 128, 0, 128, 128, 128);
-    grad.addColorStop(0, 'rgba(255,255,255,0.18)');
-    grad.addColorStop(0.4, 'rgba(255,255,255,0.06)');
-    grad.addColorStop(1, 'rgba(255,255,255,0)');
-    gctx.fillStyle = grad;
-    gctx.fillRect(0, 0, 256, 256);
-    var glareTex = PIXI.Texture.from(glareCanvas);
-    var glareSprite = new PIXI.Sprite(glareTex);
-    glareSprite.anchor.set(0.5);
-    glareSprite.blendMode = PIXI.BLEND_MODES.ADD;
-    glareSprite.scale.set(4, 2.5);
-    app.stage.addChild(glareSprite);
+    /* Bloom disabled — keep text crisp */
 
     /* ---- Layout ---- */
 
-    var chMetric = new PIXI.Text('M', { fontFamily: FONT_FAMILY, fontSize: FONT_MAIN });
+    var chMetric = new PIXI.Text('M', { fontFamily: FONT_FAMILY, fontSize: params.fontSize });
     var chW = chMetric.width;
     chMetric.destroy();
+    var lineHeight = Math.round(params.fontSize * 1.4);
     var prevRuleCols = 0;
+    var layoutDirty = true;
 
     function layout() {
       var col3 = Math.round(3 * chW);
       verbText.x = col3;
       ellipsisText.x = verbText.x + verbText.width;
 
-      var leftX = Math.round(chW * 2);
+      var leftX = Math.round(chW * (2 + params.tuiOffsetCols));
       spinnerLine.x = leftX;
-      spinnerLine.y = Math.round(app.screen.height / 2 - glyphText.height);
+      spinnerLine.y = Math.round(app.screen.height / 2 - lineHeight);
 
       metaLine.x = leftX + col3;
-      metaLine.y = Math.round(spinnerLine.y + glyphText.height + 8);
+      metaLine.y = Math.round(spinnerLine.y + lineHeight + lineHeight * 0.15);
 
       scrollContainer.x = leftX;
 
       // bottom chrome
-      var lh = glyphText.height;
+      var lh = lineHeight;
       var pad = Math.round(lh * 0.3);
       var ruleCols = Math.max(1, Math.floor(app.screen.width / chW) - 2);
       if (ruleCols !== prevRuleCols) {
@@ -575,48 +684,192 @@
 
       /* visibility per state */
       var inIdle = machine.current === S.IDLE;
-      var inTerminal = !inIdle && machine.current !== S.BUGGED;
-      headerContainer.visible = inIdle;
-      inputContainer.visible = inIdle;
-      scrollContainer.visible = inTerminal;
-      spinnerLine.visible = inTerminal;
+      inputContainer.visible = false;
+      scrollContainer.visible = true;
+      spinnerLine.visible = !inIdle;
       metaLine.visible = machine.current === S.DEMO;
-      bottomChrome.visible = inTerminal;
-      buggedContainer.visible = machine.current === S.BUGGED;
+      bottomChrome.visible = true;
 
-      /* header + input positioning */
-      var headerH = headerTexts.length * lh;
-      var blockH = headerH + lh + lh;
-      var topY = Math.round((app.screen.height - blockH) / 2);
-      var hx = Math.round((app.screen.width - 80 * chW) / 2);
-      headerContainer.x = hx;
-      headerContainer.y = topY;
-      inputContainer.x = hx;
-      inputContainer.y = topY + headerH + lh;
-      buggedContainer.x = leftX;
-      buggedContainer.y = Math.round((app.screen.height - buggedText.height) / 2);
+      if (inIdle) {
+        /* vertically centre header + complete chrome */
+        var headerH = scrollItems.length * lineHeight;
+        var chromeH = 6 * lh + 6 * pad;
+        var totalH = headerH + chromeH;
+        var topY = Math.round((app.screen.height - totalH) / 2);
+        for (var si = 0; si < scrollItems.length; si++) {
+          scrollItems[si].y = topY + si * lineHeight;
+        }
+        /* anchor complete chrome below header */
+        var chromeBotY = topY + headerH + pad;
+        ruleTop.y = chromeBotY;
+        promptText.y = chromeBotY + lh + pad;
+        ruleBottom.y = chromeBotY + lh * 2 + pad * 2;
+        statusText.y = chromeBotY + lh * 3 + pad * 3;
+        permsText.y = chromeBotY + lh * 4 + pad * 4;
+        infoText.y = chromeBotY + lh * 5 + pad * 5;
+        statusText.visible = true;
+        permsText.visible = true;
+        infoText.visible = true;
+      } else {
+        layoutScrollItems();
+        statusText.visible = true;
+        permsText.visible = true;
+        infoText.visible = true;
+      }
+
     }
 
     function layoutScrollItems() {
-      var lh = Math.round(glyphText.height * 1.25);
+      var lh = lineHeight;
       var gap = Math.round(lh * 0.6);
       for (var i = 0; i < scrollItems.length; i++) {
         scrollItems[i].y = spinnerLine.y - gap - (scrollItems.length - i) * lh;
       }
       while (scrollItems.length > 0 && scrollItems[0].y + lh < 0) {
         scrollContainer.removeChild(scrollItems[0]);
-        scrollItems[0].destroy();
+        releaseText(scrollItems[0]);
         scrollItems.shift();
       }
     }
 
     function addScrollLine() {
       var line = nextLine();
-      var txt = new PIXI.Text(line.t, Object.assign({ fontFamily: FONT_FAMILY, fontSize: FONT_MAIN, fill: line.c, dropShadowColor: line.c }, GLOW));
+      var txt = acquireText(line.t, line.c);
       txt.x = Math.round((line.col || 3) * chW);
       scrollContainer.addChild(txt);
       scrollItems.push(txt);
       layoutScrollItems();
+      layoutDirty = true;
+    }
+
+    /* ---- rebuildStyles + applyParam ---- */
+
+    function rebuildStyles() {
+      var cv = hexToNum(params.colorVerb);
+      var ce = hexToNum(params.colorEllipsis);
+      var cm = hexToNum(params.colorMeta);
+
+      styleMain.fontSize = params.fontSize;
+      styleMain.fill = cv;
+
+      styleEllipsis.fontSize = params.fontSize;
+      styleEllipsis.fill = ce;
+
+      styleMeta.fontSize = params.fontSize;
+      styleMeta.fill = cm;
+
+      styleHighlight.fontSize = params.fontSize;
+      styleHighlight.fill = hexToNum(params.colorHighlight);
+
+      /* update spinner-line text objects (plain style objects are disconnected from TextStyle) */
+      glyphText.style.fontSize = params.fontSize;
+      verbText.style.fontSize = params.fontSize;
+      ellipsisText.style.fontSize = params.fontSize;
+      metaText.style.fontSize = params.fontSize;
+      highlightText.style.fontSize = params.fontSize;
+
+      /* recalculate metrics */
+      var m = new PIXI.Text('M', { fontFamily: FONT_FAMILY, fontSize: params.fontSize });
+      chW = m.width;
+      m.destroy();
+      lineHeight = Math.round(params.fontSize * 1.4);
+
+      ruleTop.style.fontSize = params.fontSize;
+      ruleBottom.style.fontSize = params.fontSize;
+      promptText.style.fontSize = params.fontSize;
+      statusText.style.fontSize = params.fontSize;
+      permsText.style.fontSize = params.fontSize;
+      infoText.style.fontSize = params.fontSize;
+      caretText.style.fontSize = params.fontSize;
+      inputText.style.fontSize = params.fontSize;
+      inputText.x = Math.round(caretText.width);
+
+      /* update visible scroll items */
+      for (var i = 0; i < scrollItems.length; i++) {
+        var item = scrollItems[i];
+        if (item.style) {
+          item.style.fontSize = params.fontSize;
+        } else if (item.children) {
+          var xOff = 0;
+          for (var j = 0; j < item.children.length; j++) {
+            item.children[j].style.fontSize = params.fontSize;
+            item.children[j].x = xOff;
+            xOff += item.children[j].width;
+          }
+          item.x = Math.round(chW);
+        }
+      }
+
+      /* flush pool */
+      for (var k = 0; k < textPool.length; k++) textPool[k].destroy();
+      textPool = [];
+
+      prevRuleCols = 0;
+      layoutDirty = true;
+    }
+
+    function applyCamera() {
+      var inset = params.inset + 'vmax';
+      var tf = 'perspective(' + params.perspective + 'px)'
+        + ' rotateX(' + params.rotateX + 'deg)'
+        + ' rotateY(' + params.rotateY + 'deg)'
+        + ' rotateZ(' + params.rotateZ + 'deg)'
+        + ' scale(' + params.scale + ')'
+        + ' translate(' + params.translateX + 'vw, ' + params.translateY + 'vh)';
+      wrap.style.inset = inset;
+      wrap.style.transform = tf;
+      lcdOverlay.style.inset = inset;
+      lcdOverlay.style.transform = tf;
+    }
+
+    function applyParam(key) {
+      layoutDirty = true;
+      switch (key) {
+        case 'colorVerb':
+          styleMain.fill = hexToNum(params.colorVerb);
+          break;
+        case 'colorEllipsis':
+          styleEllipsis.fill = hexToNum(params.colorEllipsis);
+          break;
+        case 'colorMeta':
+          styleMeta.fill = hexToNum(params.colorMeta);
+          break;
+        case 'colorHighlight':
+          styleHighlight.fill = hexToNum(params.colorHighlight);
+          break;
+        case 'bgColor':
+          app.renderer.background.color = hexToNum(params.bgColor);
+          break;
+        case 'glareOpacity':
+          glareOverlay.style.opacity = params.glareOpacity;
+          break;
+        case 'inset': case 'perspective': case 'rotateX': case 'rotateY': case 'rotateZ': case 'scale': case 'translateX': case 'translateY':
+          applyCamera();
+          updateLcdSize();
+          break;
+        case 'originX': case 'originY':
+          wrap.style.transformOrigin = params.originX + '% ' + params.originY + '%';
+          lcdOverlay.style.transformOrigin = params.originX + '% ' + params.originY + '%';
+          break;
+        case 'resolutionMult':
+          params.resolutionMult = snapResolutionMult(params.resolutionMult);
+          app.renderer.resolution = window.devicePixelRatio * params.resolutionMult;
+          app.renderer.resize(wrap.clientWidth, wrap.clientHeight);
+          updateLcdSize();
+          break;
+        case 'imageRendering':
+          wrap.querySelector('canvas').style.imageRendering = params.imageRendering;
+          break;
+        case 'fontSize':
+          rebuildStyles();
+          break;
+        case 'lcdEnabled':
+          lcdOverlay.style.display = params.lcdEnabled ? '' : 'none';
+          break;
+        case 'deadPixelsEnabled':
+          updateLcdSize();
+          break;
+      }
     }
 
     /* ---- State management ---- */
@@ -624,15 +877,14 @@
     function updateSuggestion() {
       var text = '';
       if (machine.current === S.IDLE) {
-        text = defaultSet ? 'Show me some verbs of ' + defaultSet.name : 'No sets available';
-        inputText.text = text;
-        inputText.style.fill = COLOR_SUGGESTION;
-        inputText.style.dropShadowColor = COLOR_SUGGESTION;
-        caretText.style.fill = COLOR_SUGGESTION;
-        caretText.style.dropShadowColor = COLOR_SUGGESTION;
-        promptText.text = '\u276f';
-        promptText.style.fill = C_PROMPT;
-        promptText.style.dropShadowColor = C_PROMPT;
+        var idleSet = localeSets.length > 0 ? localeSets[machine.browseIndex % localeSets.length] : null;
+        text = idleSet ? 'Show me some verbs of ' + idleSet.name : 'No sets available';
+        promptText.text = '\u276f ' + text;
+        promptText.style.fill = COLOR_SUGGESTION;
+        statusText.text = '\u2026/_management\u2026/claude-verbs\u2026/site   main *5';
+        permsText.text = '\u23f5\u23f5 bypass permissions on (shift+tab to cycle) \u00b7 5 files +322 -66';
+        infoText.text = '00:00 | tip: /git:commit';
+        layoutDirty = true;
         return;
       }
       var hint = '';
@@ -650,16 +902,17 @@
       }
       promptText.text = '\u276f ' + text + '   ' + hint;
       promptText.style.fill = COLOR_ACTIVE;
-      promptText.style.dropShadowColor = COLOR_ACTIVE;
       verbText.text = '';
       ellipsisText.visible = false;
       highlightText.visible = false;
+      layoutDirty = true;
     }
 
     function startDemo(set) {
       if (!set) return;
+      machine.hasSubmitted = true;
       machine.activeSet = set;
-      var sv = set.verbs ? set.verbs.slice() : [];
+      var sv = set.verbs ? normalizeVerbs(set.verbs) : [];
       if (set === idiotSet) {
         for (var di = 0; di < sv.length; di++) sv[di] = sv[di] + ' like an idiot';
       }
@@ -667,12 +920,10 @@
       if (verbs.length === 0) verbs = ['Thinking', 'Processing'];
       verbIdx = 0;
       verbText.text = verbs[0];
-      verbText.style.fill = COLOR_VERB;
-      verbText.style.dropShadowColor = COLOR_VERB;
+      verbText.style.fill = hexToNum(params.colorVerb);
       ellipsisText.visible = true;
       promptText.text = '\u276f';
       promptText.style.fill = C_PROMPT;
-      promptText.style.dropShadowColor = C_PROMPT;
       tokenCount = 0;
       startTime = Date.now();
       lastFrameTime = 0;
@@ -681,10 +932,11 @@
       lastScrollTime = 0;
       for (var ci = scrollItems.length - 1; ci >= 0; ci--) {
         scrollContainer.removeChild(scrollItems[ci]);
-        scrollItems[ci].destroy();
+        releaseText(scrollItems[ci]);
       }
       scrollItems = [];
-      machine.demoTimer = setTimeout(function () { dispatch('DEMO_TIMEOUT'); }, DEMO_TIMEOUT_MS);
+      layoutDirty = true;
+      machine.demoTimer = setTimeout(function () { dispatch('DEMO_TIMEOUT'); }, params.demoTimeoutMs);
     }
 
     function stopDemo() {
@@ -696,8 +948,10 @@
       machine.previous = machine.current;
       machine.current = state;
       if (state === S.POST_DEMO) machine.postIndex = 0;
+      if (state === S.BUGGED) { flickerMode = 0; }
       if (state === S.IDLE || state === S.BROWSING || state === S.POST_DEMO) updateSuggestion();
       if (state === S.DEMO) startDemo(machine.activeSet);
+      layoutDirty = true;
     }
 
     function exitState(state) {
@@ -708,9 +962,16 @@
       var m = machine;
       switch (m.current) {
         case S.IDLE:
-          if (event === 'ENTER' && defaultSet) { m.activeSet = defaultSet; enterState(S.DEMO); }
-          else if (event === 'ARROW_DOWN' && localeSets.length > 0) { m.browseIndex = 1 % localeSets.length; m.skipCount = 0; enterState(S.BROWSING); }
-          else if (event === 'SHIFT_TAB') enterState(S.BUGGED);
+          if (event === 'ENTER' && localeSets.length > 0) {
+            m.activeSet = localeSets[m.browseIndex % localeSets.length];
+            enterState(S.DEMO);
+          } else if (event === 'ARROW_DOWN' && localeSets.length > 0) {
+            m.browseIndex = (m.browseIndex + 1) % localeSets.length;
+            updateSuggestion();
+          } else if (event === 'ARROW_UP' && localeSets.length > 0) {
+            m.browseIndex = (m.browseIndex - 1 + localeSets.length) % localeSets.length;
+            updateSuggestion();
+          } else if (event === 'SHIFT_TAB') enterState(S.BUGGED);
           break;
         case S.BROWSING:
           if (event === 'ENTER') {
@@ -733,7 +994,7 @@
         case S.POST_DEMO:
           if (event === 'ENTER') {
             var act = POST_SUGGESTIONS[m.postIndex].action;
-            if (act === 'copy' && m.activeSet) navigator.clipboard.writeText('bunx spinner-verbs install ' + m.activeSet.name);
+            if (act === 'copy' && m.activeSet) navigator.clipboard.writeText('bunx claude-verbs install ' + m.activeSet.name);
             else if (act === 'marketplace') window.location.href = 'marketplace.html';
           } else if (event === 'ARROW_DOWN') { m.postIndex = (m.postIndex + 1) % POST_SUGGESTIONS.length; updateSuggestion(); }
           else if (event === 'ARROW_UP') { m.postIndex = (m.postIndex - 1 + POST_SUGGESTIONS.length) % POST_SUGGESTIONS.length; updateSuggestion(); }
@@ -756,33 +1017,28 @@
     var lastVerbTime = 0;
     var lastTokenTime = 0;
     var lastScrollTime = 0;
+    var flickerMode = 0;
 
     /* ---- Animation loop ---- */
 
     app.ticker.add(function () {
       var now = Date.now();
 
-      if (now - lastFrameTime >= FRAME_MS) {
+      if (now - lastFrameTime >= params.frameMs) {
         spinnerTick++;
         var fi = SPINNER_TIMELINE[spinnerTick % SPINNER_TIMELINE.length];
         glyphText.text = SPINNER_FRAMES[fi];
         lastFrameTime = now;
       }
 
-      var glareCycle = 12000;
-      var gt = (now % glareCycle) / glareCycle;
-      glareSprite.x = app.screen.width * (0.2 + 0.6 * gt);
-      glareSprite.y = app.screen.height * (0.3 + 0.15 * Math.sin(gt * Math.PI * 2));
-      glareSprite.alpha = 0.5 + 0.3 * Math.sin(gt * Math.PI);
-
-      /* scroll + bottom chrome: all terminal states */
-      if (machine.current !== S.IDLE && machine.current !== S.BUGGED) {
-        var scrollDelay = (currentBurstMs > 0 && linesLeftInBurst > 0) ? currentBurstMs : SCROLL_MS;
+      /* scroll + bottom chrome: only after submit-driven demo starts */
+      if (machine.hasSubmitted && machine.current !== S.IDLE && machine.current !== S.BROWSING) {
+        var scrollDelay = (currentBurstMs > 0 && linesLeftInBurst > 0) ? currentBurstMs : params.scrollMs;
         if (now - lastScrollTime >= scrollDelay) {
           addScrollLine();
           lastScrollTime = now;
         }
-        statusText.text = '\u2026/_management\u2026/spinner-verbs\u2026/site   main *5';
+        statusText.text = '\u2026/_management\u2026/claude-verbs\u2026/site   main *5';
         permsText.text = '\u23f5\u23f5 bypass permissions on (shift+tab to cycle) \u00b7 5 files +322 -66';
         var h = Math.floor((now - startTime) / 3600000);
         var m = Math.floor(((now - startTime) % 3600000) / 60000);
@@ -790,24 +1046,25 @@
         infoText.text = timeStr + ' | tip: /git:commit';
       }
 
-      /* verb rotation + highlight: DEMO only */
-      if (machine.current === S.DEMO) {
-        if (verbs.length > 0 && now - lastVerbTime >= VERB_MS) {
+      /* verb rotation + highlight: DEMO or BUGGED */
+      if (machine.current === S.DEMO || machine.current === S.BUGGED) {
+        if (verbs.length > 0 && now - lastVerbTime >= params.verbMs) {
           verbIdx = (verbIdx + 1) % verbs.length;
           verbText.text = verbs[verbIdx];
           lastVerbTime = now;
+          layoutDirty = true;
         }
 
         if (now - lastTokenTime >= 1000) {
-          tokenCount += TOKEN_RATE + Math.floor(Math.random() * 20 - 10);
+          tokenCount += params.tokenRate + Math.floor(Math.random() * 20 - 10);
           lastTokenTime = now;
         }
 
         var verb = verbText.text;
         var totalSteps = verb.length + 2;
-        var cycleMs = totalSteps * CHAR_DWELL_MS;
+        var cycleMs = totalSteps * params.charDwellMs;
         if (verb.length > 0) {
-          var step = Math.floor((now % cycleMs) / CHAR_DWELL_MS) - 2;
+          var step = Math.floor((now % cycleMs) / params.charDwellMs) - 2;
           var start = Math.max(0, step);
           var end = Math.min(verb.length, step + 3);
           highlightText.text = verb.substring(start, end);
@@ -819,7 +1076,60 @@
         metaText.text = '(esc to interrupt \u00b7 ' + elapsed + ' \u00b7 \u2193 ' + tokenCount + ' tokens \u00b7 thinking)';
       }
 
-      layout();
+      if (layoutDirty) { layout(); layoutDirty = false; }
+
+      /* ---- Flicker effect (after layout so y-offset isn't overwritten) ---- */
+      if (machine.current === S.BUGGED) {
+        var flickLh = Math.round(glyphText.height * 1.25);
+        var flickAlpha = 1;
+        var yOff = 0;
+
+        /* 60% pregenerated full-screen chaos contexts, 40% random per-frame */
+        if (Math.random() < 0.60) {
+          var ctx = randInt(0, 3);
+          if (ctx === 0) {
+            /* hard vertical slam */
+            yOff = flickLh * (Math.random() < 0.5 ? -1 : 1) * params.flickerMaxYLines;
+            flickAlpha = 0.7 + Math.random() * 0.3;
+          } else if (ctx === 1) {
+            /* vertical jolt + ghost */
+            yOff = flickLh * (Math.random() < 0.5 ? -1 : 1);
+            flickAlpha = params.flickerGhostAlphaMin + Math.random() * 0.3;
+          } else if (ctx === 2) {
+            /* strobe blank */
+            flickAlpha = 0;
+          } else {
+            /* jitter: small rapid y-offset + semi-transparent */
+            yOff = flickLh * (Math.random() - 0.5) * 2;
+            flickAlpha = 0.5 + Math.random() * 0.5;
+          }
+        } else {
+          /* per-frame random mode */
+          var r = Math.random() * 100;
+          var np = params.flickerNormalPct;
+          var band = (100 - np) / 3;
+
+          if (r < np)                flickerMode = 0;
+          else if (r < np + band)    flickerMode = 1;
+          else if (r < np + band*2)  flickerMode = 2;
+          else                        flickerMode = 3;
+
+          var chaos = flickerMode > 0 && Math.random() < 0.10;
+
+          if (flickerMode === 1 || chaos)
+            yOff = flickLh * (Math.random() < 0.5 ? -1 : 1) * randInt(1, params.flickerMaxYLines);
+
+          flickAlpha = (flickerMode === 2) ? 0
+            : (flickerMode === 3) ? params.flickerGhostAlphaMin + Math.random() * (1 - params.flickerGhostAlphaMin) * 0.6
+            : 1;
+        }
+
+        flickerWrap.y = yOff;
+        flickerWrap.alpha = flickAlpha;
+      } else {
+        flickerWrap.y = 0;
+        flickerWrap.alpha = 1;
+      }
     });
 
     /* ---- Keyboard ---- */
@@ -833,21 +1143,123 @@
     });
 
     inputContainer.on('pointertap', function () { dispatch('ENTER'); });
+    promptText.eventMode = 'static';
+    promptText.cursor = 'pointer';
+    promptText.on('pointertap', function () {
+      if (machine.current === S.IDLE) dispatch('ENTER');
+    });
 
     /* ---- Init ---- */
 
     var headerRowData = buildHeaderRows(80);
-    var headerLh = glyphText.height;
     for (var hi = 0; hi < headerRowData.length; hi++) {
       var hr = headerRowData[hi];
-      var ht = new PIXI.Text(hr.text, { fontFamily: FONT_FAMILY, fontSize: FONT_MAIN, fill: hr.color });
-      ht.y = Math.round(hi * headerLh);
-      headerTexts.push(ht);
-      headerContainer.addChild(ht);
+      var rowContainer = new PIXI.Container();
+      rowContainer.x = Math.round(chW);
+      var xOff = 0;
+      for (var pi = 0; pi < hr.parts.length; pi++) {
+        var part = hr.parts[pi];
+        var pt = new PIXI.Text(part.text, { fontFamily: FONT_FAMILY, fontSize: params.fontSize, fill: part.color });
+        pt.x = xOff;
+        xOff += pt.width;
+        rowContainer.addChild(pt);
+      }
+      scrollContainer.addChild(rowContainer);
+      scrollItems.push(rowContainer);
     }
     enterState(S.IDLE);
-    layout();
+
+    /* ---- Expose API for Tweakpane ---- */
+    window.__spinnerAPI = { params: params, applyParam: applyParam };
   })();
+  </script>
+
+  <!-- Tweakpane v4 (ES module, deferred by spec -- IIFE runs first) -->
+  <script type="module">
+  import {Pane} from 'https://cdn.jsdelivr.net/npm/tweakpane@4/dist/tweakpane.min.js';
+
+  var api = window.__spinnerAPI;
+  var p = api.params;
+  var pane = new Pane({ title: 'Claude Verbs' });
+  pane.hidden = false;
+
+  function bind(folder, key, opts) {
+    folder.addBinding(p, key, opts || {}).on('change', function () {
+      api.applyParam(key);
+    });
+  }
+
+  /* Timing */
+  var fT = pane.addFolder({ title: 'Timing', expanded: false });
+  bind(fT, 'frameMs', { min: 30, max: 500, step: 10 });
+  bind(fT, 'verbMs', { min: 500, max: 10000, step: 100 });
+  bind(fT, 'scrollMs', { min: 50, max: 2000, step: 50 });
+  bind(fT, 'demoTimeoutMs', { min: 5000, max: 60000, step: 1000 });
+  bind(fT, 'charDwellMs', { min: 50, max: 1000, step: 50 });
+  bind(fT, 'tokenRate', { min: 5, max: 200, step: 5 });
+
+  /* Colors */
+  var fC = pane.addFolder({ title: 'Colors', expanded: false });
+  bind(fC, 'colorVerb');
+  bind(fC, 'colorEllipsis');
+  bind(fC, 'colorMeta');
+  bind(fC, 'bgColor');
+  bind(fC, 'colorHighlight');
+
+
+  /* Glare */
+  var fG = pane.addFolder({ title: 'Glare', expanded: false });
+  bind(fG, 'glareOpacity', { min: 0, max: 1, step: 0.05 });
+
+  /* Camera */
+  var fCam = pane.addFolder({ title: 'Camera', expanded: false });
+  bind(fCam, 'inset', { min: -20, max: 0, step: 0.5 });
+  bind(fCam, 'perspective', { min: 200, max: 5000, step: 50 });
+  bind(fCam, 'rotateX', { min: -30, max: 30, step: 0.5 });
+  bind(fCam, 'rotateY', { min: -30, max: 30, step: 0.5 });
+  bind(fCam, 'rotateZ', { min: -15, max: 15, step: 0.5 });
+  bind(fCam, 'scale', { min: 0.5, max: 3, step: 0.05 });
+  bind(fCam, 'translateX', { min: -50, max: 50, step: 1 });
+  bind(fCam, 'translateY', { min: -50, max: 50, step: 1 });
+  bind(fCam, 'originX', { min: 0, max: 100, step: 1 });
+  bind(fCam, 'originY', { min: 0, max: 100, step: 1 });
+
+  /* Resolution */
+  var fR = pane.addFolder({ title: 'Resolution', expanded: false });
+  bind(fR, 'resolutionMult', { min: 0.05, max: 1, step: 0.025 });
+  bind(fR, 'imageRendering', { options: { Pixelated: 'pixelated', Auto: 'auto' } });
+
+  /* Text */
+  var fTx = pane.addFolder({ title: 'Text', expanded: false });
+  bind(fTx, 'fontSize', { min: 16, max: 120, step: 2 });
+  bind(fTx, 'tuiOffsetCols', { min: 0, max: 40, step: 1 });
+
+  /* Effects */
+  var fFx = pane.addFolder({ title: 'Effects', expanded: false });
+  bind(fFx, 'lcdEnabled');
+  bind(fFx, 'deadPixelsEnabled');
+
+  /* Flicker (easter egg) */
+  var fFl = pane.addFolder({ title: 'Flicker', expanded: false });
+  bind(fFl, 'flickerNormalPct', { min: 0, max: 80, step: 5 });
+  bind(fFl, 'flickerMaxYLines', { min: 1, max: 10, step: 1 });
+  bind(fFl, 'flickerGhostAlphaMin', { min: 0, max: 0.8, step: 0.05 });
+
+  /* Export */
+  pane.addButton({ title: 'Export JSON' }).on('click', function () {
+    var json = JSON.stringify(p, null, 2);
+    var blob = new Blob([json], { type: 'application/json' });
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'spinner-params.json';
+    a.click();
+    URL.revokeObjectURL(a.href);
+  });
+
+  /* Toggle with backtick */
+  document.addEventListener('keydown', function (e) {
+    if (e.key === '`') pane.hidden = !pane.hidden;
+  });
   </script>
 </body>
 </html>

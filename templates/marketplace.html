@@ -656,6 +656,19 @@
         return LANG_NAMES[code] || code.toUpperCase();
       }
 
+      function normalizeVerbLine(line) {
+        if (typeof line !== 'string') { return ''; }
+        return line.replace(/^\s*I(?:[\u2019']m| am)\s+/i, '');
+      }
+
+      function normalizeVerbs(lines) {
+        var out = [];
+        for (var i = 0; i < lines.length; i++) {
+          out.push(normalizeVerbLine(lines[i]));
+        }
+        return out;
+      }
+
       function allVerbs(sets) {
         var verbs = [];
         var langs = Object.keys(sets);
@@ -663,7 +676,7 @@
           var group = sets[langs[i]];
           for (var j = 0; j < group.length; j++) {
             var v = group[j].verbs;
-            if (v) { verbs = verbs.concat(v); }
+            if (v) { verbs = verbs.concat(normalizeVerbs(v)); }
           }
         }
         return verbs;
@@ -765,7 +778,7 @@
             html += '<div class="cards">';
             for (var j = 0; j < group.length; j++) {
               var s = group[j];
-              var verbs = s.verbs || [];
+              var verbs = normalizeVerbs(s.verbs || []);
               html += '<div class="card" tabindex="0" role="button" aria-expanded="false" data-idx="' + lang + '-' + j + '">';
               html += '<span class="card__expand-hint" aria-hidden="true">&#9654;</span>';
               html += '<div class="card__name">' + esc(s.name) + '</div>';
