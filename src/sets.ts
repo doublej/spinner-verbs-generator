@@ -13,15 +13,29 @@ export async function loadSets(): Promise<VerbSet[]> {
 
 async function loadLangSets(language: string): Promise<VerbSet[]> {
   const dir = join(setsDir, language)
-  const files = await readdir(dir)
-  const jsonFiles = files.filter((f) => f.endsWith('.json') && !f.startsWith('_'))
-  return Promise.all(jsonFiles.map((f) => loadSet(join(dir, f), language)))
+  const jsonFiles = await listJsonFilesRecursive(dir)
+  return Promise.all(jsonFiles.map((f) => loadSet(f, language)))
 }
 
 async function loadSet(path: string, language: string): Promise<VerbSet> {
   const raw = await readFile(path, 'utf-8')
   const data = JSON.parse(raw) as Omit<VerbSet, 'language'>
   return { ...data, language }
+}
+
+async function listJsonFilesRecursive(dir: string): Promise<string[]> {
+  const entries = await readdir(dir, { withFileTypes: true })
+  const files: string[] = []
+  for (const entry of entries) {
+    if (entry.name.startsWith('_')) continue
+    const full = join(dir, entry.name)
+    if (entry.isDirectory()) {
+      files.push(...(await listJsonFilesRecursive(full)))
+      continue
+    }
+    if (entry.isFile() && entry.name.endsWith('.json')) files.push(full)
+  }
+  return files
 }
 
 export async function findSet(name: string): Promise<VerbSet | undefined> {

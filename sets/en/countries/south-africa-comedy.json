@@ -1,6 +1,6 @@
 {
-  "$schema": "./schema.json",
-  "name": "south-africa",
+  "$schema": "../../schema.json",
+  "name": "south-africa-comedy",
   "description": "South African comedy themed verbs",
   "author": "JJ",
   "github": "jurrejan",

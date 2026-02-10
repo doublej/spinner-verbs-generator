@@ -1,6 +1,6 @@
 {
-  "$schema": "./schema.json",
-  "name": "egypt",
+  "$schema": "../../schema.json",
+  "name": "egypt-comedy",
   "description": "Egyptian comedy themed verbs",
   "author": "JJ",
   "github": "jurrejan",

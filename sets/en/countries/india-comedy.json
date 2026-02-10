@@ -1,6 +1,6 @@
 {
-  "$schema": "./schema.json",
-  "name": "india",
+  "$schema": "../../schema.json",
+  "name": "india-comedy",
   "description": "Indian comedy themed verbs",
   "author": "JJ",
   "github": "jurrejan",

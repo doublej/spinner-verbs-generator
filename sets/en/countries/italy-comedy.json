@@ -1,6 +1,6 @@
 {
-  "$schema": "./schema.json",
-  "name": "italy",
+  "$schema": "../../schema.json",
+  "name": "italy-comedy",
   "description": "Italian comedy themed verbs",
   "author": "JJ",
   "github": "jurrejan",

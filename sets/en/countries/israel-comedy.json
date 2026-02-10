@@ -1,6 +1,6 @@
 {
-  "$schema": "./schema.json",
-  "name": "israel",
+  "$schema": "../../schema.json",
+  "name": "israel-comedy",
   "description": "Israeli comedy themed verbs",
   "author": "JJ",
   "github": "jurrejan",

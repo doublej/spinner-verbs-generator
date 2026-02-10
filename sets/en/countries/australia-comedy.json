@@ -1,6 +1,6 @@
 {
-  "$schema": "./schema.json",
-  "name": "australia",
+  "$schema": "../../schema.json",
+  "name": "australia-comedy",
   "description": "Australian comedy themed verbs",
   "author": "JJ",
   "github": "jurrejan",

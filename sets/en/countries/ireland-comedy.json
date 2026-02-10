@@ -1,6 +1,6 @@
 {
-  "$schema": "./schema.json",
-  "name": "ireland",
+  "$schema": "../../schema.json",
+  "name": "ireland-comedy",
   "description": "Irish comedy themed verbs",
   "author": "JJ",
   "github": "jurrejan",

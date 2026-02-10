@@ -1,6 +1,6 @@
 {
-  "$schema": "./schema.json",
-  "name": "philippines",
+  "$schema": "../../schema.json",
+  "name": "philippines-comedy",
   "description": "Filipino comedy themed verbs",
   "author": "JJ",
   "github": "jurrejan",

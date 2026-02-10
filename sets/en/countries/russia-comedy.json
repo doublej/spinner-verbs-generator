@@ -1,6 +1,6 @@
 {
-  "$schema": "./schema.json",
-  "name": "russia",
+  "$schema": "../../schema.json",
+  "name": "russia-comedy",
   "description": "Russian comedy themed verbs",
   "author": "JJ",
   "github": "jurrejan",

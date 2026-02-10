@@ -1,6 +1,6 @@
 {
-  "$schema": "./schema.json",
-  "name": "united-states",
+  "$schema": "../../schema.json",
+  "name": "united-states-late-night",
   "description": "American late-night show themed verbs",
   "author": "JJ",
   "github": "jurrejan",

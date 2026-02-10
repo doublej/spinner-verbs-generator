@@ -1,6 +1,6 @@
 {
-  "$schema": "./schema.json",
-  "name": "south-korea",
+  "$schema": "../../schema.json",
+  "name": "south-korea-comedy",
   "description": "South Korean comedy themed verbs",
   "author": "JJ",
   "github": "jurrejan",

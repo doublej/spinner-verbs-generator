@@ -1,6 +1,6 @@
 {
-  "$schema": "./schema.json",
-  "name": "canada",
+  "$schema": "../../schema.json",
+  "name": "canada-comedy",
   "description": "Canadian comedy themed verbs",
   "author": "JJ",
   "github": "jurrejan",
