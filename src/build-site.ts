@@ -25,15 +25,21 @@ async function build(): Promise<void> {
   const templatePath = resolve(import.meta.dirname, '..', 'templates', 'marketplace.html')
   const template = await readFile(templatePath, 'utf-8')
 
-  const injection = `<script>const SETS = ${JSON.stringify(grouped)}; const AUTHORS = ${JSON.stringify(authors)}</script>`
-  const html = template.replace('<!--SETS_DATA-->', injection)
+  const setsInjection = `<script>const SETS = ${JSON.stringify(grouped)}; const AUTHORS = ${JSON.stringify(authors)}</script>`
 
   const outDir = resolve(import.meta.dirname, '..', 'site')
   await mkdir(outDir, { recursive: true })
-  await writeFile(resolve(outDir, 'index.html'), html)
+
+  const pages = ['marketplace', 'pixi-preview'] as const
+  for (const page of pages) {
+    const tplPath = resolve(import.meta.dirname, '..', 'templates', `${page}.html`)
+    const tpl = await readFile(tplPath, 'utf-8')
+    const outName = page === 'marketplace' ? 'index.html' : `${page}.html`
+    await writeFile(resolve(outDir, outName), tpl.replace('<!--SETS_DATA-->', setsInjection))
+  }
 
   console.log(
-    `Built site/index.html (${Object.keys(grouped).length} languages, ${sets.length} sets)`,
+    `Built site/ (${Object.keys(grouped).length} languages, ${sets.length} sets, ${pages.length} pages)`,
   )
 }
 
