@@ -4,7 +4,21 @@ Themed spinner verb sets for Claude Code.
 
 ## Install
 
+### From GitHub (recommended)
+
 ```bash
+# Install globally
+bun install -g github:doublej/spinner-verbs-generator
+
+# Or run without installing
+bunx github:doublej/spinner-verbs-generator list
+```
+
+### For development
+
+```bash
+git clone https://github.com/doublej/spinner-verbs-generator
+cd spinner-verbs-generator
 bun install
 bun link   # makes `spinner-verbs` available globally
 ```
