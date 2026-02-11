@@ -11,12 +11,13 @@ interface Issue {
 type Result = { errors: Issue[]; warnings: Issue[] }
 
 const ISO_LANG_RE = /^[a-z]{2}$/
+const LOCALE_RE = /^[a-z]{2}_[A-Z]{2}$/
 const NAME_RE = /^[a-z0-9-]+$/
 const GITHUB_RE = /^[a-zA-Z\d](?:[a-zA-Z\d]|-(?=[a-zA-Z\d])){0,38}$/
 
 function validateMeta(file: string, data: Record<string, unknown>, language: string): Issue[] {
   const errors: Issue[] = []
-  for (const field of ['name', 'description', 'author', 'github', 'config']) {
+  for (const field of ['name', 'description', 'author', 'github', 'language', 'config']) {
     if (!(field in data)) errors.push({ file, message: `Missing required field: ${field}` })
   }
   if (errors.length > 0) return errors
@@ -35,6 +36,12 @@ function validateMeta(file: string, data: Record<string, unknown>, language: str
   }
   if (!ISO_LANG_RE.test(language)) {
     errors.push({ file, message: `Invalid language dir "${language}" — must be ISO 639-1` })
+  }
+  const locale = data.language as string
+  if (!LOCALE_RE.test(locale)) {
+    errors.push({ file, message: `Invalid language "${locale}" — must match xx_XX (e.g. en_GB)` })
+  } else if (!locale.startsWith(language)) {
+    errors.push({ file, message: `Language "${locale}" does not match directory "${language}"` })
   }
   return errors
 }
@@ -108,6 +115,21 @@ async function validateSet(filePath: string, language: string): Promise<Result> 
   return validateVerbs(file, data)
 }
 
+async function listJsonFilesRecursive(dir: string): Promise<string[]> {
+  const entries = await readdir(dir, { withFileTypes: true })
+  const files: string[] = []
+  for (const entry of entries) {
+    if (entry.name.startsWith('_')) continue
+    const full = join(dir, entry.name)
+    if (entry.isDirectory()) {
+      files.push(...(await listJsonFilesRecursive(full)))
+    } else if (entry.name.endsWith('.json')) {
+      files.push(full)
+    }
+  }
+  return files
+}
+
 async function main(): Promise<void> {
   const entries = await readdir(setsDir, { withFileTypes: true })
   const langDirs = entries.filter((e) => e.isDirectory() && !e.name.startsWith('_'))
@@ -118,11 +140,10 @@ async function main(): Promise<void> {
   for (const dir of langDirs) {
     const lang = dir.name
     const langPath = join(setsDir, lang)
-    const files = await readdir(langPath)
-    const jsonFiles = files.filter((f) => f.endsWith('.json') && !f.startsWith('_'))
+    const jsonFiles = await listJsonFilesRecursive(langPath)
 
-    for (const file of jsonFiles) {
-      const { errors, warnings } = await validateSet(join(langPath, file), lang)
+    for (const filePath of jsonFiles) {
+      const { errors, warnings } = await validateSet(filePath, lang)
       for (const e of errors) {
         console.error(`error: ${lang}/${e.file}: ${e.message}`)
         totalErrors++
