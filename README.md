@@ -10,8 +10,8 @@ Themed spinner verb sets for Claude Code.
 # Install globally
 bun install -g github:doublej/spinner-verbs-generator
 
-# Or run without installing
-bunx github:doublej/spinner-verbs-generator list
+# Then use it
+spinner-verbs list
 ```
 
 ### For development
