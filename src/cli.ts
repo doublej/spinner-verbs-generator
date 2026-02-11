@@ -2,7 +2,7 @@
 import { current, install, list, reset, show } from './commands.js'
 import { generatePrompt } from './prompt.js'
 
-const USAGE = `Usage: spinner-verbs <command>
+const USAGE = `Usage: claude-verbs <command>
 
 Commands:
   list              Show available verb sets
@@ -16,7 +16,7 @@ const [command, ...args] = process.argv.slice(2)
 
 function requireArg(cmd: string): string {
   if (!args[0]) {
-    console.error(`Usage: spinner-verbs ${cmd}`)
+    console.error(`Usage: claude-verbs ${cmd}`)
     process.exit(1)
   }
   return args[0]

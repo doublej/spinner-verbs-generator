@@ -43,15 +43,15 @@ npm publish
 ## Post-publish
 
 - Tag the release in git: `git tag v0.1.0 && git push --tags`
-- Test installation: `npm install -g spinner-verbs`
+- Test installation: `npm install -g claude-verbs-cli`
 
 ## Package name availability
 
 Before first publish, check if the name is available:
 ```bash
-npm view spinner-verbs
+npm view claude-verbs-cli
 ```
 
 If taken, you can:
 - Choose a different name (update package.json)
-- Use a scoped package: `@yourname/spinner-verbs`
+- Use a scoped package: `@yourname/claude-verbs-cli`

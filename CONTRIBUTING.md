@@ -14,8 +14,8 @@ Spinner verbs are the animated status messages shown in Claude Code's spinner wh
 ### 1. Fork and clone
 
 ```sh
-gh repo fork jurrejan/spinner-verbs --clone
-cd spinner-verbs
+gh repo fork doublej/claude-verbs-cli --clone
+cd claude-verbs-cli
 bun install
 ```
 

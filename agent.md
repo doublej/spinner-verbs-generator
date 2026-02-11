@@ -1,4 +1,4 @@
-# spinner-verbs-generator
+# claude-verbs-cli
 
 > A Node.js API
 

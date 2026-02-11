@@ -1,4 +1,4 @@
-# spinner-verbs
+# claude-verbs-cli
 
 Themed spinner verb sets for Claude Code.
 
@@ -8,28 +8,28 @@ Themed spinner verb sets for Claude Code.
 
 ```bash
 # Install globally
-bun install -g github:doublej/spinner-verbs-generator
+bun install -g github:doublej/claude-verbs-cli
 
 # Then use it
-spinner-verbs list
+claude-verbs list
 ```
 
 ### For development
 
 ```bash
-git clone https://github.com/doublej/spinner-verbs-generator
-cd spinner-verbs-generator
+git clone https://github.com/doublej/claude-verbs-cli
+cd claude-verbs-cli
 bun install
-bun link   # makes `spinner-verbs` available globally
+bun link   # makes `claude-verbs` available globally
 ```
 
 ## Usage
 
 ```bash
-spinner-verbs list              # Show available verb sets
-spinner-verbs install freddy    # Apply a verb set
-spinner-verbs current           # Show installed verbs
-spinner-verbs reset             # Restore defaults
+claude-verbs list              # Show available verb sets
+claude-verbs install freddy    # Apply a verb set
+claude-verbs current           # Show installed verbs
+claude-verbs reset             # Restore defaults
 ```
 
 ## Adding a verb set

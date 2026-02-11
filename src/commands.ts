@@ -6,7 +6,7 @@ async function requireSet(name: string): Promise<VerbSet> {
   const set = await findSet(name)
   if (!set) {
     console.error(`Unknown verb set: "${name}"`)
-    console.error('Run "spinner-verbs list" to see available sets.')
+    console.error('Run "claude-verbs list" to see available sets.')
     process.exit(1)
   }
   return set

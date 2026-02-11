@@ -1,4 +1,4 @@
-# spinner-verbs
+# claude-verbs-cli
 
 > Themed spinner verb sets for Claude Code
 
@@ -33,10 +33,10 @@ sets/
 ## CLI Usage
 
 ```
-spinner-verbs list              Show available verb sets
-spinner-verbs install <name>    Apply a verb set to Claude Code
-spinner-verbs current           Show currently installed spinner verbs
-spinner-verbs reset             Remove spinner verbs (restore defaults)
+claude-verbs list              Show available verb sets
+claude-verbs install <name>    Apply a verb set to Claude Code
+claude-verbs current           Show currently installed spinner verbs
+claude-verbs reset             Remove spinner verbs (restore defaults)
 ```
 
 ## Conventions

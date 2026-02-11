@@ -1,12 +1,12 @@
 {
-  "name": "spinner-verbs",
+  "name": "claude-verbs-cli",
   "version": "0.1.0",
   "description": "Themed spinner verb sets for Claude Code",
   "author": "JJ",
   "license": "MIT",
   "type": "module",
   "bin": {
-    "spinner-verbs": "src/cli.ts"
+    "claude-verbs": "src/cli.ts"
   },
   "files": [
     "src",
