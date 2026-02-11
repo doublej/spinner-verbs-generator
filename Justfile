@@ -17,14 +17,6 @@ link:
 cli *args:
 	bun src/cli.ts {{args}}
 
-[group('develop')]
-build-site:
-	bun src/build-site.ts
-
-[group('develop')]
-preview-site: build-site
-	open site/index.html
-
 [group('quality')]
 lint:
 	bun run lint

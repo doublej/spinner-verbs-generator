@@ -8,17 +8,8 @@
   "bin": {
     "claude-verbs": "src/cli.ts"
   },
-  "files": [
-    "src",
-    "sets"
-  ],
-  "keywords": [
-    "claude",
-    "claude-code",
-    "spinner",
-    "cli",
-    "verbs"
-  ],
+  "files": ["src", "sets"],
+  "keywords": ["claude", "claude-code", "spinner", "cli", "verbs"],
   "scripts": {
     "cli": "bun src/cli.ts",
     "build": "tsc",

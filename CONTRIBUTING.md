@@ -1,6 +1,6 @@
 # Contributing a Verb Set
 
-Spinner verbs are the animated status messages shown in Claude Code's spinner while it thinks. This project lets you create themed sets of these verbs.
+Claude verbs are the animated status messages shown in Claude Code's spinner while it thinks. This project lets you create themed sets of these verbs.
 
 ## What makes a good verb set?
 
@@ -76,7 +76,7 @@ CI will validate your set automatically.
 ## Rules
 
 - Filename must match the `name` field (kebab-case, lowercase)
-- `github` must be your GitHub username (used for attribution on the site)
+- `github` must be your GitHub username (used for attribution)
 - No duplicate verbs within a set
 - Must pass `sets/schema.json` validation
 - Keep it respectful — sets with offensive content will be rejected
