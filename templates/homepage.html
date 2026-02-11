@@ -311,22 +311,26 @@
 
     function buildLcdPattern() {
       var c = document.createElement('canvas');
-      c.width = 4; c.height = 4;
+      c.width = 12; c.height = 4;
       var ctx = c.getContext('2d');
-      var cols = [
-        [255, 51, 51],
-        [51, 255, 51],
-        [51, 51, 255],
-        [102, 102, 102],
+      /* Fill with dark gap color first */
+      ctx.fillStyle = 'rgb(40, 40, 40)';
+      ctx.fillRect(0, 0, 12, 4);
+      /* RGB subpixel columns with visible color tint */
+      var subpixels = [
+        { x: 0, color: [255, 180, 180] },  /* R subpixel - light with red tint */
+        { x: 4, color: [180, 255, 180] },  /* G subpixel - light with green tint */
+        { x: 8, color: [180, 180, 255] },  /* B subpixel - light with blue tint */
       ];
-      for (var row = 0; row < 4; row++) {
-        var f = row === 3 ? 0.9 : 1.0;
-        for (var col = 0; col < 4; col++) {
-          var rgb = cols[col];
-          ctx.fillStyle = 'rgb(' + Math.round(rgb[0] * f) + ',' + Math.round(rgb[1] * f) + ',' + Math.round(rgb[2] * f) + ')';
-          ctx.fillRect(col, row, 1, 1);
+      for (var i = 0; i < subpixels.length; i++) {
+        var sp = subpixels[i];
+        for (var row = 0; row < 3; row++) {
+          var f = 1.0 - row * 0.05; /* subtle vertical gradient */
+          ctx.fillStyle = 'rgb(' + Math.round(sp.color[0] * f) + ',' + Math.round(sp.color[1] * f) + ',' + Math.round(sp.color[2] * f) + ')';
+          ctx.fillRect(sp.x, row, 3, 1); /* 3px wide subpixel, 1px gap */
         }
       }
+      /* Bottom row is dark gap */
       return c;
     }
 
@@ -633,7 +637,7 @@
     var lcdSprite = new PIXI.TilingSprite(lcdTexture, app.screen.width, app.screen.height);
     lcdSprite.texture.baseTexture.scaleMode = PIXI.SCALE_MODES.NEAREST; /* force native nearest-neighbor */
     var lcdSz = 1 / ((window.devicePixelRatio || 1) * params.resolutionMult);
-    lcdSprite.tileScale.set(lcdSz / 4);
+    lcdSprite.tileScale.set(lcdSz / 12, lcdSz / 4); /* 12x4 pattern */
     lcdSprite.blendMode = PIXI.BLEND_MODES.MULTIPLY;
     lcdSprite.visible = params.lcdEnabled;
 
@@ -960,7 +964,7 @@
           app.renderer.resize(wrap.clientWidth, wrap.clientHeight);
           rt.resize(app.screen.width, app.screen.height);
           var lcdSz = 1 / ((window.devicePixelRatio || 1) * params.resolutionMult);
-          lcdSprite.tileScale.set(lcdSz / 4);
+          lcdSprite.tileScale.set(lcdSz / 12, lcdSz / 4); /* 12x4 pattern */
           applyCamera();
           break;
         case 'imageRendering':
