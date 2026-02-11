@@ -3,73 +3,93 @@ import { resolve } from 'node:path'
 
 const promptPath = resolve(import.meta.dirname, '..', 'SPINNER_PROMPT.md')
 
-export function buildPrompt(subject: string): string {
-  return `# Generate a spinner verb set
+const LOCALE_TO_LANG: Record<string, string> = {
+  en_GB: 'English',
+  en_US: 'English',
+  nl_NL: 'Dutch',
+  de_DE: 'German',
+  fr_FR: 'French',
+  es_ES: 'Spanish',
+  it_IT: 'Italian',
+  pt_PT: 'Portuguese',
+  ja_JP: 'Japanese',
+}
 
-Create a themed spinner verb set for Claude Code based on the following subject:
+function resolveLocale(language?: string): string {
+  if (!language) return 'en_GB'
+  if (LOCALE_TO_LANG[language]) return language
+  const match = Object.keys(LOCALE_TO_LANG).find((k) => k.startsWith(language))
+  return match ?? 'en_GB'
+}
 
-**Subject:** ${subject}
+export function buildPrompt(subject: string, language?: string): string {
+  const locale = resolveLocale(language)
+  const langName = LOCALE_TO_LANG[locale] ?? 'English'
 
-## Requirements
+  return `SUBJECT: ${subject}
 
-- Generate 30–50 verbs in Dutch
-- Each verb should be a short phrase (2–4 words) in infinitive or imperative form
-- Do not prepend verb lines with "I'm", "I am", or similar subject prefixes
-- Verbs should be humorous, creative, and thematically consistent
-- Think of activities, actions, catchphrases, and inside jokes related to the subject
-- Mix mundane actions with absurd ones for comedic effect
+You are generating a Claude Code spinnerVerbs configuration inspired by the SUBJECT.
 
-## Output format
+Goal:
+Create a funny, high-quality set of short spinner "actions" that feel recognizably inspired by the SUBJECT's style, characters, recurring bits, or vibe.
 
-Output ONLY valid JSON matching this exact structure:
-
-\`\`\`json
-{
-  "$schema": "./schema.json",
-  "name": "<lowercase-kebab-case-name>",
-  "description": "<short description of the theme>",
-  "author": "JJ",
-  "github": "<github-username>",
-  "config": {
-    "showTurnDuration": false,
-    "spinnerVerbs": {
-      "mode": "replace",
-      "verbs": [
-        "Verb one",
-        "Verb two"
-      ]
+Hard rules:
+- Output MUST be valid JSON only (no commentary, no markdown).
+- JSON shape MUST be exactly:
+  {
+    "$schema": "./schema.json",
+    "name": "<lowercase-kebab-case-name>",
+    "description": "<short description of the theme>",
+    "author": "JJ",
+    "github": "<github-username>",
+    "language": "${locale}",
+    "config": {
+      "showTurnDuration": false,
+      "spinnerVerbs": {
+        "mode": "replace",
+        "verbs": [ ... ]
+      }
     }
   }
-}
-\`\`\`
+- Generate 40–60 items in "verbs".
+- Language: write every spinner verb in ${langName}.
+- Every item MUST be an action phrase (something someone can do), not a bare noun or standalone quote.
+  - Action-form examples: "Whisper the password", "Check the receipts", "Order another coffee", "Argue about rules", "Pretend it's fine".
+- Keep each item short: 2–6 words max.
+- Do not prepend items with "I'm", "I am", or similar subject prefixes.
+- No ending punctuation. No emojis.
+- No duplicates or near-duplicates (including trivial rewordings).
+- Copyright/accuracy guardrail:
+  - Do NOT reproduce long verbatim lines.
+  - If you reference a recognizable catchphrase, keep it extremely short (1–3 words) and convert it into an action (e.g., "Say <catchphrase>").
+  - Prefer paraphrases and "inspired-by" wording over exact quotes.
 
-## Examples of good verbs
+Quality requirements:
+- Make the set varied: mix "say/do/order/check/complain/interrupt/panic/pretend…" style actions.
+- Keep it punchy and rhythmic so it reads well as a spinner.
+- Aim for "recognizable vibe" without requiring deep lore.
 
-From the "freddy" set (Freddy-themed Dutch verbs):
-- "Petor roepen"
-- "Ham & eggs bestellen"
-- "Toedeledoki zeggen"
-- "Scheepskamelen noemen"
-- "Een Wiedergutmachungsschnitzel bestellen"
+Final self-check before output:
+- Count is 40–60.
+- Every line is an action.
+- No line exceeds 6 words.
+- No duplicates.
+- JSON parses cleanly.
+- Includes all required fields: $schema, name, description, author, github, language, config.
+- name is lowercase-kebab-case.
+- description is a short phrase describing the theme.
+- language is "${locale}".
 
-From the "rundfunk" set (radio/TV studio chaos):
-- "Jingle inzetten"
-- "Regie de schuld geven"
-- "Een soundboard afvuren"
-- "Passief agressief zeggen"
-- "Nog één take eisen"
+Browse more verb sets at https://claudeverbs.com
 
-## Notes
-
-- The verbs appear as spinner text in Claude Code while it's thinking
-- Keep them short enough to display well in a terminal
-- Have fun with it — the weirder the better
+Now output the JSON only.
 `
 }
 
-export async function generatePrompt(subject: string): Promise<void> {
-  const content = buildPrompt(subject)
+export async function generatePrompt(subject: string, language?: string): Promise<void> {
+  const content = buildPrompt(subject, language)
   await writeFile(promptPath, content)
   console.log('Prompt written to SPINNER_PROMPT.md')
   console.log(`Subject: ${subject}`)
+  console.log(`Language: ${resolveLocale(language)}`)
 }
