@@ -14,14 +14,13 @@
       height: 100vh;
     }
 
-    /* ---- PixiJS background ---- */
-    #canvas-wrap, #lcd-overlay {
+    /* ---- PixiJS canvas ---- */
+    #canvas-wrap {
       position: fixed;
-      inset: -10vmax;
-      transform: perspective(1000px) rotateX(10deg) rotateY(-2deg) rotateZ(4deg) scale(3) translate(2vw, 0vh);
-      transform-origin: 42% 50%;
+      inset: 0;
+      overflow: hidden;
+      z-index: 0;
     }
-    #canvas-wrap { z-index: 0; }
 
     #canvas-wrap canvas {
       display: block;
@@ -29,19 +28,6 @@
       height: 100% !important;
       image-rendering: pixelated;
       image-rendering: crisp-edges;
-    }
-
-    /* ---- CSS Glare overlay ---- */
-    #glare-overlay {
-      position: absolute;
-      top: -10%;
-      right: -10%;
-      width: 60vmax;
-      height: 40vmax;
-      background: radial-gradient(ellipse at center, rgba(255,255,255,0.08) 0%, rgba(255,255,255,0.02) 40%, rgba(255,255,255,0) 70%);
-      mix-blend-mode: screen;
-      pointer-events: none;
-      z-index: 2;
     }
 
     /* ---- Tweakpane ---- */
@@ -52,9 +38,7 @@
 <body>
   <!--SETS_DATA-->
 
-  <div id="canvas-wrap">
-    <div id="glare-overlay"></div>
-  </div>
+  <div id="canvas-wrap"></div>
 
   <script src="https://cdn.jsdelivr.net/npm/pixi.js@7.4.2/dist/pixi.min.js"></script>
   <script>
@@ -76,7 +60,6 @@
       bgColor: '#0d1117',
       colorHighlight: '#ffee55',
       glareOpacity: 1,
-      inset: -10,
       perspective: 1000,
       rotateX: 10,
       rotateY: -2,
@@ -281,7 +264,6 @@
     PIXI.settings.ROUND_PIXELS = true;
 
     var wrap = document.getElementById('canvas-wrap');
-    var glareOverlay = document.getElementById('glare-overlay');
 
     /* ---- Dead pixel helpers (seeded pseudo-random, painted into LCD overlay) ---- */
     var seed = 42;
@@ -292,7 +274,7 @@
       var dpr = window.devicePixelRatio || 1;
       c.width = Math.round(w * dpr);
       c.height = Math.round(h * dpr);
-      if (!params.deadPixelsEnabled) return c.toDataURL();
+      if (!params.deadPixelsEnabled) return c;
       var ctx = c.getContext('2d');
       var px = Math.round(3 * dpr);
       ctx.fillStyle = '#0a0c10';
@@ -302,7 +284,7 @@
         var y = Math.round((0.10 + seededRand() * 0.60) * c.height);
         ctx.fillRect(x, y, px, px);
       }
-      return c.toDataURL();
+      return c;
     }
 
     function snapResolutionMult(mult) {
@@ -312,6 +294,9 @@
     }
 
     params.resolutionMult = snapResolutionMult(params.resolutionMult);
+    /* Native rendering optimization (DRP): resolutionMult: 0.25 at 2x DPR = 0.5 native resolution
+       Text + overlays render at reduced scale → SimpleMesh camera upscales.
+       Reduces RenderTexture overhead while keeping text crisp via native path. */
 
     var app = new PIXI.Application({
       resizeTo: wrap,
@@ -322,12 +307,7 @@
     });
     wrap.appendChild(app.view);
 
-    /* ---- LCD subpixel overlay ---- */
-
-    var lcdOverlay = document.createElement('div');
-    lcdOverlay.id = 'lcd-overlay';
-    lcdOverlay.style.cssText = 'z-index:1;pointer-events:none;mix-blend-mode:multiply;image-rendering:pixelated;';
-    document.body.appendChild(lcdOverlay);
+    /* ---- LCD + overlay helpers (PixiJS sprites created later) ---- */
 
     function buildLcdPattern() {
       var c = document.createElement('canvas');
@@ -347,23 +327,26 @@
           ctx.fillRect(col, row, 1, 1);
         }
       }
-      return c.toDataURL();
+      return c;
     }
 
-    var lcdTileUrl = buildLcdPattern();
-
-    function updateLcdSize() {
-      var sz = 1 / ((window.devicePixelRatio || 1) * params.resolutionMult);
-      var w = window.innerWidth;
-      var h = window.innerHeight;
-      var dpUrl = buildDeadPixelLayer(w, h);
-      lcdOverlay.style.backgroundImage = 'url(' + dpUrl + '), url(' + lcdTileUrl + ')';
-      lcdOverlay.style.backgroundSize = '100% 100%, ' + sz + 'px ' + sz + 'px';
-      lcdOverlay.style.backgroundRepeat = 'no-repeat, repeat';
+    function buildGlareCanvas(w, h) {
+      var vmax = Math.max(w, h);
+      var gw = Math.round(vmax * 0.6);
+      var gh = Math.round(vmax * 0.4);
+      var c = document.createElement('canvas');
+      c.width = gw; c.height = gh;
+      var ctx = c.getContext('2d');
+      var cx = gw / 2, cy = gh / 2;
+      var r = Math.max(gw, gh) * 0.7;
+      var grd = ctx.createRadialGradient(cx, cy, 0, cx, cy, r);
+      grd.addColorStop(0, 'rgba(255,255,255,0.08)');
+      grd.addColorStop(0.4, 'rgba(255,255,255,0.02)');
+      grd.addColorStop(0.7, 'rgba(255,255,255,0)');
+      ctx.fillStyle = grd;
+      ctx.fillRect(0, 0, gw, gh);
+      return c;
     }
-
-    updateLcdSize();
-    window.addEventListener('resize', function () { updateLcdSize(); layoutDirty = true; });
 
     /* ---- Text objects ---- */
 
@@ -371,10 +354,15 @@
     var styleEllipsis = makeStyle(hexToNum(params.colorEllipsis));
     var styleMeta = makeStyle(hexToNum(params.colorMeta));
 
+    /* Enable native text rendering for text layers via DRP hint */
     var glyphText = new PIXI.Text(SPINNER_FRAMES[4], styleMain);
+    glyphText._canUseCanvas = true;
     var verbText = new PIXI.Text('Loading', styleMain);
+    verbText._canUseCanvas = true;
     var ellipsisText = new PIXI.Text('\u2026', styleEllipsis);
+    ellipsisText._canUseCanvas = true;
     var metaText = new PIXI.Text('', styleMeta);
+    metaText._canUseCanvas = true;
 
     /* ---- Sweep highlight (3 yellow chars) ---- */
     var styleHighlight = { fontFamily: FONT_FAMILY, fontSize: params.fontSize, fill: hexToNum(params.colorHighlight) };
@@ -627,7 +615,91 @@
 
     var flickerWrap = new PIXI.Container();
     flickerWrap.addChild(scrollContainer, spinnerLine, metaLine, bottomChrome, inputContainer);
-    app.stage.addChild(flickerWrap);
+
+    /* ---- Content container + overlays (rendered to RT) ---- */
+
+    var contentContainer = new PIXI.Container();
+
+    var bgRect = new PIXI.Graphics();
+    bgRect.beginFill(hexToNum(params.bgColor));
+    bgRect.drawRect(0, 0, app.screen.width, app.screen.height);
+    bgRect.endFill();
+    contentContainer.addChild(bgRect);
+    contentContainer.addChild(flickerWrap);
+
+    /* LCD subpixel overlay - optimized for native rendering */
+    var lcdCanvas = buildLcdPattern();
+    var lcdTexture = PIXI.Texture.from(lcdCanvas, { scaleMode: PIXI.SCALE_MODES.NEAREST });
+    var lcdSprite = new PIXI.TilingSprite(lcdTexture, app.screen.width, app.screen.height);
+    lcdSprite.texture.baseTexture.scaleMode = PIXI.SCALE_MODES.NEAREST; /* force native nearest-neighbor */
+    var lcdSz = 1 / ((window.devicePixelRatio || 1) * params.resolutionMult);
+    lcdSprite.tileScale.set(lcdSz / 4);
+    lcdSprite.blendMode = PIXI.BLEND_MODES.MULTIPLY;
+    lcdSprite.visible = params.lcdEnabled;
+    contentContainer.addChild(lcdSprite);
+
+    /* Dead pixels - optimized for native rendering */
+    var deadPixelCanvas = buildDeadPixelLayer(app.screen.width, app.screen.height);
+    var deadPixelTexture = PIXI.Texture.from(deadPixelCanvas, { scaleMode: PIXI.SCALE_MODES.NEAREST });
+    deadPixelTexture.baseTexture.scaleMode = PIXI.SCALE_MODES.NEAREST; /* force native nearest-neighbor */
+    var deadPixelSprite = new PIXI.Sprite(deadPixelTexture);
+    deadPixelSprite.width = app.screen.width;
+    deadPixelSprite.height = app.screen.height;
+    deadPixelSprite.blendMode = PIXI.BLEND_MODES.MULTIPLY;
+    deadPixelSprite.visible = params.deadPixelsEnabled;
+    contentContainer.addChild(deadPixelSprite);
+
+    /* Glare - optimized for native rendering with screen blend */
+    var glareCanvas = buildGlareCanvas(app.screen.width, app.screen.height);
+    var glareTexture = PIXI.Texture.from(glareCanvas, { scaleMode: PIXI.SCALE_MODES.LINEAR });
+    var glareSprite = new PIXI.Sprite(glareTexture);
+    glareSprite.blendMode = PIXI.BLEND_MODES.SCREEN;
+    glareSprite.alpha = params.glareOpacity;
+    glareSprite.x = app.screen.width - glareSprite.width * 0.4;
+    glareSprite.y = -app.screen.height * 0.1;
+    contentContainer.addChild(glareSprite);
+
+    /* RenderTexture + Camera Mesh - native rendering path with optimal resolution */
+    var dpr = window.devicePixelRatio || 1;
+    var rt = PIXI.RenderTexture.create({
+      width: app.screen.width,
+      height: app.screen.height,
+      resolution: dpr * params.resolutionMult,
+      scaleMode: PIXI.SCALE_MODES.NEAREST, /* use nearest-neighbor for pixel-perfect scaling */
+    });
+
+    var cameraMeshUvs = new Float32Array([0, 0, 1, 0, 1, 1, 0, 1]);
+    var cameraMeshIndices = new Uint16Array([0, 1, 2, 0, 2, 3]);
+    var cameraMeshVerts = new Float32Array(8);
+    var cameraMesh = new PIXI.SimpleMesh(rt, cameraMeshVerts, cameraMeshUvs, cameraMeshIndices);
+    app.stage.addChild(cameraMesh);
+
+    applyCamera();
+
+    /* Resize handler */
+    window.addEventListener('resize', function () {
+      var w = app.screen.width;
+      var h = app.screen.height;
+      bgRect.clear();
+      bgRect.beginFill(hexToNum(params.bgColor));
+      bgRect.drawRect(0, 0, w, h);
+      bgRect.endFill();
+      rt.resize(w, h);
+      lcdSprite.width = w;
+      lcdSprite.height = h;
+      var dpCanvas = buildDeadPixelLayer(w, h);
+      deadPixelSprite.texture.destroy(true);
+      deadPixelSprite.texture = PIXI.Texture.from(dpCanvas);
+      deadPixelSprite.width = w;
+      deadPixelSprite.height = h;
+      var gc = buildGlareCanvas(w, h);
+      glareSprite.texture.destroy(true);
+      glareSprite.texture = PIXI.Texture.from(gc);
+      glareSprite.x = w - glareSprite.texture.width * 0.4;
+      glareSprite.y = -h * 0.1;
+      applyCamera();
+      layoutDirty = true;
+    });
 
     /* Bloom disabled — keep text crisp */
 
@@ -808,18 +880,45 @@
       layoutDirty = true;
     }
 
+    function computeCameraVertices(w, h, p, out) {
+      var ox = (p.originX / 100) * w;
+      var oy = (p.originY / 100) * h;
+      var tx = (p.translateX / 100) * w;
+      var ty = (p.translateY / 100) * h;
+      var s = p.scale;
+      var d = p.perspective;
+      var rz = p.rotateZ * Math.PI / 180;
+      var ry = p.rotateY * Math.PI / 180;
+      var rx = p.rotateX * Math.PI / 180;
+      var crz = Math.cos(rz), srz = Math.sin(rz);
+      var cry = Math.cos(ry), sry = Math.sin(ry);
+      var crx = Math.cos(rx), srx = Math.sin(rx);
+      var corners = [0, 0, w, 0, w, h, 0, h];
+
+      for (var i = 0; i < 4; i++) {
+        var x = corners[i * 2] - ox;
+        var y = corners[i * 2 + 1] - oy;
+        var z = 0;
+        x += tx; y += ty;
+        x *= s; y *= s;
+        var x1 = x * crz - y * srz;
+        var y1 = x * srz + y * crz;
+        x = x1; y = y1;
+        var x2 = x * cry + z * sry;
+        var z2 = -x * sry + z * cry;
+        x = x2; z = z2;
+        var y3 = y * crx - z * srx;
+        var z3 = y * srx + z * crx;
+        y = y3; z = z3;
+        var f = (d > 0) ? d / (d - z) : 1;
+        out[i * 2] = x * f + ox;
+        out[i * 2 + 1] = y * f + oy;
+      }
+    }
+
     function applyCamera() {
-      var inset = params.inset + 'vmax';
-      var tf = 'perspective(' + params.perspective + 'px)'
-        + ' rotateX(' + params.rotateX + 'deg)'
-        + ' rotateY(' + params.rotateY + 'deg)'
-        + ' rotateZ(' + params.rotateZ + 'deg)'
-        + ' scale(' + params.scale + ')'
-        + ' translate(' + params.translateX + 'vw, ' + params.translateY + 'vh)';
-      wrap.style.inset = inset;
-      wrap.style.transform = tf;
-      lcdOverlay.style.inset = inset;
-      lcdOverlay.style.transform = tf;
+      computeCameraVertices(app.screen.width, app.screen.height, params, cameraMeshVerts);
+      cameraMesh.geometry.getBuffer('aVertexPosition').update();
     }
 
     function applyParam(key) {
@@ -839,23 +938,26 @@
           break;
         case 'bgColor':
           app.renderer.background.color = hexToNum(params.bgColor);
+          bgRect.clear();
+          bgRect.beginFill(hexToNum(params.bgColor));
+          bgRect.drawRect(0, 0, app.screen.width, app.screen.height);
+          bgRect.endFill();
           break;
         case 'glareOpacity':
-          glareOverlay.style.opacity = params.glareOpacity;
+          glareSprite.alpha = params.glareOpacity;
           break;
-        case 'inset': case 'perspective': case 'rotateX': case 'rotateY': case 'rotateZ': case 'scale': case 'translateX': case 'translateY':
-          applyCamera();
-          updateLcdSize();
-          break;
+        case 'perspective': case 'rotateX': case 'rotateY': case 'rotateZ': case 'scale': case 'translateX': case 'translateY':
         case 'originX': case 'originY':
-          wrap.style.transformOrigin = params.originX + '% ' + params.originY + '%';
-          lcdOverlay.style.transformOrigin = params.originX + '% ' + params.originY + '%';
+          applyCamera();
           break;
         case 'resolutionMult':
           params.resolutionMult = snapResolutionMult(params.resolutionMult);
           app.renderer.resolution = window.devicePixelRatio * params.resolutionMult;
           app.renderer.resize(wrap.clientWidth, wrap.clientHeight);
-          updateLcdSize();
+          rt.resize(app.screen.width, app.screen.height);
+          var lcdSz = 1 / ((window.devicePixelRatio || 1) * params.resolutionMult);
+          lcdSprite.tileScale.set(lcdSz / 4);
+          applyCamera();
           break;
         case 'imageRendering':
           wrap.querySelector('canvas').style.imageRendering = params.imageRendering;
@@ -864,10 +966,10 @@
           rebuildStyles();
           break;
         case 'lcdEnabled':
-          lcdOverlay.style.display = params.lcdEnabled ? '' : 'none';
+          lcdSprite.visible = params.lcdEnabled;
           break;
         case 'deadPixelsEnabled':
-          updateLcdSize();
+          deadPixelSprite.visible = params.deadPixelsEnabled;
           break;
       }
     }
@@ -1130,6 +1232,9 @@
         flickerWrap.y = 0;
         flickerWrap.alpha = 1;
       }
+
+      /* ---- Render content to RT for camera mesh (after flicker) ---- */
+      app.renderer.render(contentContainer, { renderTexture: rt });
     });
 
     /* ---- Keyboard ---- */
@@ -1213,7 +1318,6 @@
 
   /* Camera */
   var fCam = pane.addFolder({ title: 'Camera', expanded: false });
-  bind(fCam, 'inset', { min: -20, max: 0, step: 0.5 });
   bind(fCam, 'perspective', { min: 200, max: 5000, step: 50 });
   bind(fCam, 'rotateX', { min: -30, max: 30, step: 0.5 });
   bind(fCam, 'rotateY', { min: -30, max: 30, step: 0.5 });
