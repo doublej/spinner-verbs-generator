@@ -51,7 +51,7 @@ Hard rules:
       }
     }
   }
-- Generate 40–60 items in "verbs".
+- Generate 15–100 items in "verbs" (aim for 50).
 - Language: write every spinner verb in ${langName}.
 - Every item MUST be an action phrase (something someone can do), not a bare noun or standalone quote.
   - Action-form examples: "Whisper the password", "Check the receipts", "Order another coffee", "Argue about rules", "Pretend it's fine".
@@ -70,7 +70,7 @@ Quality requirements:
 - Aim for "recognizable vibe" without requiring deep lore.
 
 Final self-check before output:
-- Count is 40–60.
+- Count is 15–100.
 - Every line is an action.
 - No line exceeds 6 words.
 - No duplicates.
