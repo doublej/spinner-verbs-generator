@@ -1,10 +1,19 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "https://github.com/doublej/claude-verbs/schema.json",
+  "$id": "https://github.com/doublej/claude-verbs/sets/schema.json",
   "title": "Spinner Verb Set",
   "description": "A themed spinner verb set for Claude Code",
   "type": "object",
-  "required": ["name", "description", "author", "github", "language", "config"],
+  "required": [
+    "name",
+    "description",
+    "author",
+    "github",
+    "language",
+    "config",
+    "displayName",
+    "category"
+  ],
   "additionalProperties": false,
   "properties": {
     "$schema": {
@@ -30,7 +39,7 @@
     },
     "language": {
       "type": "string",
-      "description": "Locale code matching URL format (e.g. en_GB, nl_NL)",
+      "description": "Locale code in xx_YY format. Currently used values: en_US, nl_NL",
       "pattern": "^[a-z]{2}_[A-Z]{2}$"
     },
     "config": {
@@ -44,7 +53,7 @@
         },
         "spinnerVerbs": {
           "type": "object",
-          "required": ["mode", "verbs"],
+          "required": ["verbs"],
           "additionalProperties": false,
           "properties": {
             "mode": {
@@ -58,12 +67,33 @@
                 "type": "string",
                 "minLength": 1
               },
-              "minItems": 1,
+              "minItems": 15,
+              "maxItems": 100,
+              "uniqueItems": true,
               "description": "List of spinner verb strings"
             }
           }
         }
       }
+    },
+    "displayName": {
+      "type": "string",
+      "description": "Human-readable display name"
+    },
+    "category": {
+      "type": "string",
+      "enum": [
+        "entertainment",
+        "music",
+        "gaming",
+        "literature",
+        "science",
+        "tech",
+        "sport",
+        "culture",
+        "original"
+      ],
+      "description": "Content category"
     }
   }
 }
