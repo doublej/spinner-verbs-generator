@@ -1,10 +1,12 @@
 {
-  "$schema": "../schema.json",
+  "$schema": "./schema.json",
   "name": "us-portal",
+  "displayName": "Portal",
+  "category": "gaming",
   "description": "Portal puzzle adventure spinner verbs",
-  "author": "Codex",
+  "author": "JJ",
   "github": "doublej",
-  "language": "en_GB",
+  "language": "en_US",
   "config": {
     "showTurnDuration": false,
     "spinnerVerbs": {

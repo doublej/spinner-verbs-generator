@@ -10,15 +10,11 @@ function normalizeVerbLine(line: string): string {
 
 export async function loadSets(): Promise<VerbSet[]> {
   const entries = await readdir(setsDir, { withFileTypes: true })
-  const langDirs = entries.filter((e) => e.isDirectory() && !e.name.startsWith('_'))
-  const sets = await Promise.all(langDirs.map((d) => loadLangSets(d.name)))
-  return sets.flat()
-}
-
-async function loadLangSets(langDir: string): Promise<VerbSet[]> {
-  const dir = join(setsDir, langDir)
-  const jsonFiles = await listJsonFilesRecursive(dir)
-  return Promise.all(jsonFiles.map((f) => loadSet(f)))
+  const jsonFiles = entries.filter(
+    (e) =>
+      e.isFile() && e.name.endsWith('.json') && !e.name.startsWith('_') && e.name !== 'schema.json',
+  )
+  return Promise.all(jsonFiles.map((f) => loadSet(join(setsDir, f.name))))
 }
 
 async function loadSet(path: string): Promise<VerbSet> {
@@ -26,21 +22,6 @@ async function loadSet(path: string): Promise<VerbSet> {
   const data = JSON.parse(raw) as VerbSet
   data.config.spinnerVerbs.verbs = data.config.spinnerVerbs.verbs.map(normalizeVerbLine)
   return data
-}
-
-async function listJsonFilesRecursive(dir: string): Promise<string[]> {
-  const entries = await readdir(dir, { withFileTypes: true })
-  const files: string[] = []
-  for (const entry of entries) {
-    if (entry.name.startsWith('_')) continue
-    const full = join(dir, entry.name)
-    if (entry.isDirectory()) {
-      files.push(...(await listJsonFilesRecursive(full)))
-      continue
-    }
-    if (entry.isFile() && entry.name.endsWith('.json')) files.push(full)
-  }
-  return files
 }
 
 export async function findSet(name: string): Promise<VerbSet | undefined> {

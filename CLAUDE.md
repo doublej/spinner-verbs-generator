@@ -33,8 +33,7 @@ src/
 sets/
 ├── schema.json         # JSON Schema for verb sets
 ├── _template.json      # template for new sets
-├── en/                 # English verb sets
-└── nl/                 # Dutch verb sets
+└── *.json              # verb sets (flat, language in JSON field)
 ```
 
 ## CLI Usage

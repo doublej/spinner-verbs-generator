@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { findSet, loadSets } from './sets.js'
 
 describe('loadSets', () => {
-  it('loads all sets from language subdirs', async () => {
+  it('loads all sets from flat directory', async () => {
     const sets = await loadSets()
     expect(sets.length).toBeGreaterThan(0)
     expect(sets[0]).toHaveProperty('name')
@@ -13,7 +13,7 @@ describe('loadSets', () => {
   it('reads language from JSON files', async () => {
     const sets = await loadSets()
     const nlSets = sets.filter((s) => s.language === 'nl_NL')
-    expect(nlSets.length).toBe(3)
+    expect(nlSets.length).toBe(4)
   })
 
   it('strips leading first-person prefixes from loaded verbs', async () => {

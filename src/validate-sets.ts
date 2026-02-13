@@ -10,12 +10,11 @@ interface Issue {
 
 type Result = { errors: Issue[]; warnings: Issue[] }
 
-const ISO_LANG_RE = /^[a-z]{2}$/
 const LOCALE_RE = /^[a-z]{2}_[A-Z]{2}$/
 const NAME_RE = /^[a-z0-9-]+$/
 const GITHUB_RE = /^[a-zA-Z\d](?:[a-zA-Z\d]|-(?=[a-zA-Z\d])){0,38}$/
 
-function validateMeta(file: string, data: Record<string, unknown>, language: string): Issue[] {
+function validateMeta(file: string, data: Record<string, unknown>): Issue[] {
   const errors: Issue[] = []
   for (const field of ['name', 'description', 'author', 'github', 'language', 'config']) {
     if (!(field in data)) errors.push({ file, message: `Missing required field: ${field}` })
@@ -34,14 +33,9 @@ function validateMeta(file: string, data: Record<string, unknown>, language: str
   if (!GITHUB_RE.test(github)) {
     errors.push({ file, message: `Invalid github "${github}" — must be a valid GitHub username` })
   }
-  if (!ISO_LANG_RE.test(language)) {
-    errors.push({ file, message: `Invalid language dir "${language}" — must be ISO 639-1` })
-  }
   const locale = data.language as string
   if (!LOCALE_RE.test(locale)) {
     errors.push({ file, message: `Invalid language "${locale}" — must match xx_XX (e.g. en_GB)` })
-  } else if (!locale.startsWith(language)) {
-    errors.push({ file, message: `Language "${locale}" does not match directory "${language}"` })
   }
   return errors
 }
@@ -98,7 +92,7 @@ function validateVerbs(file: string, data: Record<string, unknown>): Result {
   return { errors, warnings }
 }
 
-async function validateSet(filePath: string, language: string): Promise<Result> {
+async function validateSet(filePath: string): Promise<Result> {
   const file = basename(filePath)
   let data: Record<string, unknown>
   try {
@@ -108,49 +102,32 @@ async function validateSet(filePath: string, language: string): Promise<Result> 
     return { errors: [{ file, message: 'Invalid JSON' }], warnings: [] }
   }
 
-  const metaErrors = validateMeta(file, data, language)
+  const metaErrors = validateMeta(file, data)
   if (metaErrors.length > 0) return { errors: metaErrors, warnings: [] }
 
   return validateVerbs(file, data)
 }
 
-async function listJsonFilesRecursive(dir: string): Promise<string[]> {
-  const entries = await readdir(dir, { withFileTypes: true })
-  const files: string[] = []
-  for (const entry of entries) {
-    if (entry.name.startsWith('_')) continue
-    const full = join(dir, entry.name)
-    if (entry.isDirectory()) {
-      files.push(...(await listJsonFilesRecursive(full)))
-    } else if (entry.name.endsWith('.json')) {
-      files.push(full)
-    }
-  }
-  return files
-}
-
 async function main(): Promise<void> {
   const entries = await readdir(setsDir, { withFileTypes: true })
-  const langDirs = entries.filter((e) => e.isDirectory() && !e.name.startsWith('_'))
+  const jsonFiles = entries.filter(
+    (e) =>
+      e.isFile() && e.name.endsWith('.json') && !e.name.startsWith('_') && e.name !== 'schema.json',
+  )
 
   let totalErrors = 0
   let totalWarnings = 0
 
-  for (const dir of langDirs) {
-    const lang = dir.name
-    const langPath = join(setsDir, lang)
-    const jsonFiles = await listJsonFilesRecursive(langPath)
-
-    for (const filePath of jsonFiles) {
-      const { errors, warnings } = await validateSet(filePath, lang)
-      for (const e of errors) {
-        console.error(`error: ${lang}/${e.file}: ${e.message}`)
-        totalErrors++
-      }
-      for (const w of warnings) {
-        console.warn(`warn: ${lang}/${w.file}: ${w.message}`)
-        totalWarnings++
-      }
+  for (const entry of jsonFiles) {
+    const filePath = join(setsDir, entry.name)
+    const { errors, warnings } = await validateSet(filePath)
+    for (const e of errors) {
+      console.error(`error: ${e.file}: ${e.message}`)
+      totalErrors++
+    }
+    for (const w of warnings) {
+      console.warn(`warn: ${w.file}: ${w.message}`)
+      totalWarnings++
     }
   }
 
