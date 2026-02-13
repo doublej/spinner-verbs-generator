@@ -40,12 +40,13 @@ Hard rules:
   {
     "$schema": "./schema.json",
     "name": "<lowercase-kebab-case-name>",
+    "displayName": "<Human-Readable Title>",
+    "category": "<entertainment|music|gaming|literature|science|tech|sport|culture|original>",
     "description": "<short description of the theme>",
-    "author": "JJ",
+    "author": "<your-name>",
     "github": "<github-username>",
     "language": "${locale}",
     "config": {
-      "showTurnDuration": false,
       "spinnerVerbs": {
         "mode": "replace",
         "verbs": [ ... ]
@@ -76,8 +77,10 @@ Final self-check before output:
 - No line exceeds 6 words.
 - No duplicates.
 - JSON parses cleanly.
-- Includes all required fields: $schema, name, description, author, github, language, config.
+- Includes all required fields: $schema, name, displayName, category, description, author, github, language, config.
 - name is lowercase-kebab-case.
+- displayName is a human-readable title.
+- category is one of: entertainment, music, gaming, literature, science, tech, sport, culture, original.
 - description is a short phrase describing the theme.
 - language is "${locale}".
 

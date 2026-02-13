@@ -4,40 +4,39 @@ CLI tool for installing and managing themed spinner verb sets for Claude Code.
 
 Browse available sets at [claudeverbs.com](https://claudeverbs.com).
 
-## Usage
+## Quick Start
+
+Run directly without installing (always fetches the latest version):
 
 ```bash
-bunx github:doublej/claude-verbs-cli list                       # Show available verb sets
-bunx github:doublej/claude-verbs-cli list --language nl         # Filter by language
-bunx github:doublej/claude-verbs-cli show <name>                # Show one set
-bunx github:doublej/claude-verbs-cli install <name>             # Apply a verb set
-bunx github:doublej/claude-verbs-cli current                    # Show installed verbs
-bunx github:doublej/claude-verbs-cli reset                      # Restore defaults
-bunx github:doublej/claude-verbs-cli prompt "topic" --language nl_NL  # Generate a set prompt
+bunx github:doublej/claude-verbs-cli#main list
+bunx github:doublej/claude-verbs-cli#main install <name>
 ```
 
-## Verb Set Submissions
+## Install Globally
 
-Do not submit verb sets in this repository.
-
-Submit new sets via PR in [doublej/claude-verbs](https://github.com/doublej/claude-verbs):
-
-- Contribution guide: [doublej/claude-verbs/CONTRIBUTING.md](https://github.com/doublej/claude-verbs/blob/main/CONTRIBUTING.md)
-- Include the author manifest in your PR description (GitHub profile, top 3 projects, generic description)
-
-## CLI Development
+For a shorter command, install once and update any time by re-running:
 
 ```bash
-git clone https://github.com/doublej/claude-verbs-cli
-cd claude-verbs-cli
-bun install
-bun link   # makes `claude-verbs` available globally
+bun install -g github:doublej/claude-verbs-cli#main
 ```
 
-## Development Commands
+Then use `claude-verbs` directly:
 
 ```bash
-just cli list       # Run CLI in dev mode
-just check          # Run all quality checks
-just test           # Run tests
+claude-verbs list                              # Show available verb sets
+claude-verbs list --language nl                # Filter by language
+claude-verbs show <name>                       # Show one set
+claude-verbs install <name>                    # Apply a verb set
+claude-verbs current                           # Show installed verbs
+claude-verbs reset                             # Restore defaults
+claude-verbs prompt "topic" --language nl_NL   # Generate a set prompt
 ```
+
+## Contributing
+
+This repository does not accept pull requests. For bug reports, [open an issue](https://github.com/doublej/claude-verbs-cli/issues).
+
+Submit verb sets via PR in the community repository: [doublej/claude-verbs](https://github.com/doublej/claude-verbs)
+
+- Guide: [doublej/claude-verbs/CONTRIBUTING.md](https://github.com/doublej/claude-verbs/blob/main/CONTRIBUTING.md)

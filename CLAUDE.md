@@ -10,13 +10,16 @@
 
 Use `just` as the task runner:
 
+- `just install` — install deps
 - `just check` — run all checks (loc-check + validate-sets + lint + typecheck + test)
 - `just loc-check` — check file lengths (warn >300, error >400 lines)
 - `just validate-sets` — validate all verb set JSON files
 - `just cli <command>` — run the CLI
 - `just test` — run tests
+- `just typecheck` — run TypeScript type checking
 - `just lint-fix` — auto-fix lint issues
 - `just link` — link binary globally via bun
+- `just sync-sets` — sync sets from community repo
 
 ## Project Structure
 
@@ -24,6 +27,7 @@ Use `just` as the task runner:
 src/
 ├── cli.ts              # entry point, arg parsing, command dispatch
 ├── commands.ts         # list, install, current, reset, show implementations
+├── display.ts          # banner, heading, footer, formatting helpers
 ├── prompt.ts           # generate verb set creation prompts
 ├── settings.ts         # read/write ~/.claude/settings.json
 ├── sets.ts             # load verb sets from sets/ directory
@@ -38,16 +42,19 @@ sets/
 
 ## CLI Usage
 
+Run directly: `bunx github:doublej/claude-verbs-cli#main <command>`
+Or install globally: `bun install -g github:doublej/claude-verbs-cli#main`
+
 ```
-bunx github:doublej/claude-verbs-cli list [--language <code>]              Show available verb sets
-bunx github:doublej/claude-verbs-cli show <name>                           Show contents of a verb set
-bunx github:doublej/claude-verbs-cli install <name>                        Apply a verb set to Claude Code
-bunx github:doublej/claude-verbs-cli current                               Show currently installed spinner verbs
-bunx github:doublej/claude-verbs-cli reset                                 Remove spinner verbs (restore defaults)
-bunx github:doublej/claude-verbs-cli prompt <subject> [--language <locale>] Generate a prompt for creating a new verb set
+claude-verbs list [--language <code>]              Show available verb sets
+claude-verbs show <name>                           Show contents of a verb set
+claude-verbs install <name>                        Apply a verb set to Claude Code
+claude-verbs current                               Show currently installed spinner verbs
+claude-verbs reset                                 Remove spinner verbs (restore defaults)
+claude-verbs prompt <subject> [--language <locale>] Generate a prompt for creating a new verb set
 ```
 
-Supported languages: `en_GB`, `nl_NL`, `de_DE`, `fr_FR`, `es_ES`, `it_IT`, `pt_PT`, `ja_JP`.
+Supported languages: `en_GB`, `en_US`, `nl_NL`, `de_DE`, `fr_FR`, `es_ES`, `it_IT`, `pt_PT`, `ja_JP`.
 
 Browse more sets at https://claudeverbs.com
 

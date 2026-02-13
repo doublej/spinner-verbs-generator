@@ -1,4 +1,4 @@
-SUBJECT: <write the subject here>
+SUBJECT: bla
 
 You are generating a Claude Code spinnerVerbs configuration inspired by the SUBJECT.
 
@@ -13,6 +13,8 @@ Hard rules:
     "name": "<lowercase-kebab-case-name>",
     "description": "<short description of the theme>",
     "author": "JJ",
+    "github": "<github-username>",
+    "language": "en_GB",
     "config": {
       "showTurnDuration": false,
       "spinnerVerbs": {
@@ -21,7 +23,7 @@ Hard rules:
       }
     }
   }
-- Generate 40–60 items in "verbs".
+- Generate 15–100 items in "verbs" (aim for 50).
 - Language: write every spinner verb in English.
 - Every item MUST be an action phrase (something someone can do), not a bare noun or standalone quote.
   - Action-form examples: "Whisper the password", "Check the receipts", "Order another coffee", "Argue about rules", "Pretend it's fine".
@@ -40,13 +42,16 @@ Quality requirements:
 - Aim for "recognizable vibe" without requiring deep lore.
 
 Final self-check before output:
-- Count is 40–60.
+- Count is 15–100.
 - Every line is an action.
 - No line exceeds 6 words.
 - No duplicates.
 - JSON parses cleanly.
-- Includes all required fields: $schema, name, description, author, config.
+- Includes all required fields: $schema, name, description, author, github, language, config.
 - name is lowercase-kebab-case.
 - description is a short phrase describing the theme.
+- language is "en_GB".
+
+Browse more verb sets at https://claudeverbs.com
 
 Now output the JSON only.
