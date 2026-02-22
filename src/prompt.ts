@@ -1,8 +1,4 @@
-import { writeFile } from 'node:fs/promises'
-import { resolve } from 'node:path'
-import { hint, success } from './display.js'
-
-const promptPath = resolve(import.meta.dirname, '..', 'SPINNER_PROMPT.md')
+import { hint } from './display.js'
 
 const LOCALE_TO_LANG: Record<string, string> = {
   en_GB: 'English',
@@ -90,10 +86,9 @@ Now output the JSON only.
 `
 }
 
-export async function generatePrompt(subject: string, language?: string): Promise<void> {
+export function generatePrompt(subject: string, language?: string): void {
   const content = buildPrompt(subject, language)
-  await writeFile(promptPath, content)
-  console.log(`\n${success('Prompt written to SPINNER_PROMPT.md')}`)
   console.log(hint(`Subject: ${subject}`))
-  console.log(hint(`Language: ${resolveLocale(language)}`))
+  console.log(hint(`Language: ${resolveLocale(language)}\n`))
+  console.log(content)
 }
